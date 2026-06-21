@@ -1,4 +1,4 @@
-import type { ChestRecord, LinkType, RemoteLockRecord, SolveMove } from './lockTypes'
+import type { ChestRecord, LinkType, RemoteLockRecord, SolveMove } from './lockTypes.js'
 
 export const CARD_COUNT = 7
 export const MIN_GATE_COUNT = 4

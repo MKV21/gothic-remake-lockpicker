@@ -1,12 +1,12 @@
-import { listReports } from '../_lib/lockService'
+import { listReports } from '../_lib/lockService.js'
 import {
   handleApiError,
   sendJson,
   sendMethodNotAllowed,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
-import { ApiError } from '../_lib/db'
+} from '../_lib/http.js'
+import { ApiError } from '../_lib/db.js'
 
 function assertAdmin(req: ApiRequest): void {
   const token = process.env.ADMIN_TOKEN

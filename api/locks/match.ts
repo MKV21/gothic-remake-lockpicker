@@ -1,4 +1,4 @@
-import { findMatches } from '../_lib/lockService'
+import { findMatches } from '../_lib/lockService.js'
 import {
   getQueryParam,
   handleApiError,
@@ -6,7 +6,7 @@ import {
   sendMethodNotAllowed,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
+} from '../_lib/http.js'
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (req.method !== 'GET') {

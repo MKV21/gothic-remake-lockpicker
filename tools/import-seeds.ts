@@ -1,9 +1,9 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { query, getPool } from '../api/_lib/db'
-import { createOrReportLock } from '../api/_lib/lockService'
-import type { ChestRecord, LinkType, SolveMove } from '../src/shared/lockTypes'
+import { query, getPool } from '../api/_lib/db.js'
+import { createOrReportLock } from '../api/_lib/lockService.js'
+import type { ChestRecord, LinkType, SolveMove } from '../src/shared/lockTypes.js'
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const xetoxycChestDir = path.join(rootDir, 'data/chests')

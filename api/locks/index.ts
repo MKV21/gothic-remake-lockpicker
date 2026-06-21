@@ -1,5 +1,5 @@
-import { createOrReportLock } from '../_lib/lockService'
-import { enforceRateLimit } from '../_lib/rateLimit'
+import { createOrReportLock } from '../_lib/lockService.js'
+import { enforceRateLimit } from '../_lib/rateLimit.js'
 import {
   getVisitorIdentity,
   handleApiError,
@@ -8,8 +8,8 @@ import {
   sendMethodNotAllowed,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
-import type { ChestRecord } from '../../src/shared/lockTypes'
+} from '../_lib/http.js'
+import type { ChestRecord } from '../../src/shared/lockTypes.js'
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (req.method !== 'POST') {

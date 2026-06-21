@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { getPool } from '../api/_lib/db'
+import { getPool } from '../api/_lib/db.js'
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const migrationsDir = path.join(rootDir, 'db/migrations')

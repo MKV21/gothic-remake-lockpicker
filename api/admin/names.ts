@@ -1,5 +1,5 @@
-import { ApiError } from '../_lib/db'
-import { setNameStatus } from '../_lib/lockService'
+import { ApiError } from '../_lib/db.js'
+import { setNameStatus } from '../_lib/lockService.js'
 import {
   handleApiError,
   readJsonBody,
@@ -7,7 +7,7 @@ import {
   sendMethodNotAllowed,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
+} from '../_lib/http.js'
 
 function assertAdmin(req: ApiRequest): void {
   const token = process.env.ADMIN_TOKEN

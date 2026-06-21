@@ -1,5 +1,5 @@
-import { CARD_COUNT, HOLE_COUNT, type LinkType } from './types'
-import type { Direction } from '../shared/lockTypes'
+import { CARD_COUNT, HOLE_COUNT, type LinkType } from './types.js'
+import type { Direction } from '../shared/lockTypes.js'
 
 export type { Direction }
 

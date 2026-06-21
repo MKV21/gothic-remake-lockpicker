@@ -1,4 +1,4 @@
-import type { ChestRecord, LinkType, LockMatchRecord, LockNameRecord, RemoteLockRecord, SolveMove } from '../../src/shared/lockTypes'
+import type { ChestRecord, LinkType, LockMatchRecord, LockNameRecord, RemoteLockRecord, SolveMove } from '../../src/shared/lockTypes.js'
 import {
   CARD_COUNT,
   createFingerprint,
@@ -9,10 +9,10 @@ import {
   normalizeNameKey,
   parsePins,
   type NormalizedChest,
-} from '../../src/shared/lockValidation'
-import { solveLock } from '../../src/game/solver'
-import type { GameState } from '../../src/game/types'
-import { ApiError, query } from './db'
+} from '../../src/shared/lockValidation.js'
+import { solveLock } from '../../src/game/solver.js'
+import type { GameState } from '../../src/game/types.js'
+import { ApiError, query } from './db.js'
 
 type LockRow = {
   id: string

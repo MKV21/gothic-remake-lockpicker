@@ -1,6 +1,6 @@
-import type { SolveMove } from '../shared/lockTypes'
-import { getMoveDeltas } from './movement'
-import { DEFAULT_GATE_COUNT, HOLE_COUNT, type GameState, type LinkType } from './types'
+import type { SolveMove } from '../shared/lockTypes.js'
+import { getMoveDeltas } from './movement.js'
+import { DEFAULT_GATE_COUNT, HOLE_COUNT, type GameState, type LinkType } from './types.js'
 
 export type { SolveMove }
 

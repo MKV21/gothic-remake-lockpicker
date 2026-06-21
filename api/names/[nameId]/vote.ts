@@ -1,6 +1,6 @@
-import { voteName } from '../../_lib/lockService'
-import { ApiError } from '../../_lib/db'
-import { enforceRateLimit } from '../../_lib/rateLimit'
+import { voteName } from '../../_lib/lockService.js'
+import { ApiError } from '../../_lib/db.js'
+import { enforceRateLimit } from '../../_lib/rateLimit.js'
 import {
   getQueryParam,
   getVisitorIdentity,
@@ -10,7 +10,7 @@ import {
   sendMethodNotAllowed,
   type ApiRequest,
   type ApiResponse,
-} from '../../_lib/http'
+} from '../../_lib/http.js'
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (req.method !== 'POST') {

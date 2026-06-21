@@ -1,5 +1,5 @@
-import { getLock } from '../_lib/lockService'
-import { ApiError } from '../_lib/db'
+import { getLock } from '../_lib/lockService.js'
+import { ApiError } from '../_lib/db.js'
 import {
   getQueryParam,
   handleApiError,
@@ -7,7 +7,7 @@ import {
   sendMethodNotAllowed,
   type ApiRequest,
   type ApiResponse,
-} from '../_lib/http'
+} from '../_lib/http.js'
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (req.method !== 'GET') {

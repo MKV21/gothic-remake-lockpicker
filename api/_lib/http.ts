@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { ApiError } from './db'
+import { ApiError } from './db.js'
 
 export type ApiRequest = IncomingMessage & {
   body?: unknown

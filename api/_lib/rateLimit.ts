@@ -1,4 +1,4 @@
-import { ApiError, query } from './db'
+import { ApiError, query } from './db.js'
 
 export async function enforceRateLimit(options: {
   action: string
