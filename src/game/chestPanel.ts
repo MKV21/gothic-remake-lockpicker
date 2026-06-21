@@ -1,11 +1,6 @@
 import {
   applyChestToGameState,
-  deleteChest,
   gameStateToChest,
-  getChest,
-  listChests,
-  saveChest,
-  type ChestListItem,
   type ChestRecord,
 } from './chest'
 import {
@@ -62,31 +57,8 @@ function setChestName(container: HTMLElement, name: string): void {
   if (nameInput) nameInput.value = name
 }
 
-export async function saveChestFromPanel(
-  container: HTMLElement,
-  state: GameState,
-  options: {
-    solutionMoves?: SolveMove[]
-    statusMessage?: string
-    onLoad?: (chest?: ChestRecord) => void
-  } = {},
-): Promise<boolean> {
-  const { solutionMoves, statusMessage, onLoad } = options
-  const name = getChestName(container)
-  if (!name) {
-    setStatus(container, t('enterChestNameToSave'), true)
-    return false
-  }
-
-  try {
-    const saved = await saveChest(gameStateToChest(name, state, solutionMoves))
-    setStatus(container, statusMessage ?? `${t('lockSaved')}: "${saved.name}"`)
-    if (onLoad) await renderChestList(container, onLoad, state)
-    return true
-  } catch {
-    setStatus(container, t('failedSave'), true)
-    return false
-  }
+export function clearChestName(container: HTMLElement): void {
+  setChestName(container, '')
 }
 
 export async function submitSolvedChestFromPanel(
@@ -109,69 +81,6 @@ export async function submitSolvedChestFromPanel(
   } catch (error) {
     setStatus(container, error instanceof Error ? error.message : t('failedSubmit'), true)
   }
-}
-
-async function renderChestList(
-  container: HTMLElement,
-  onLoad: (chest?: ChestRecord) => void,
-  state: GameState,
-): Promise<void> {
-  const list = container.querySelector<HTMLUListElement>('#chest-list')
-  if (!list) return
-
-  let chests: ChestListItem[] = []
-  try {
-    chests = await listChests()
-  } catch {
-    list.innerHTML = `<li class="chest-empty">${t('couldNotLoadChests')}</li>`
-    return
-  }
-
-  if (chests.length === 0) {
-    list.innerHTML = `<li class="chest-empty">${t('noSavedChests')}</li>`
-    return
-  }
-
-  list.innerHTML = chests
-    .map(
-      (chest) => `
-      <li class="chest-item" data-id="${chest.id}">
-        <span class="chest-item-name">${escapeHtml(chest.name)}</span>
-        <div class="chest-item-actions">
-          <button type="button" class="chest-btn chest-btn--load" data-id="${chest.id}">${t('load')}</button>
-          <button type="button" class="chest-btn chest-btn--delete" data-id="${chest.id}">${t('delete')}</button>
-        </div>
-      </li>
-    `,
-    )
-    .join('')
-
-  list.querySelectorAll<HTMLButtonElement>('.chest-btn--load').forEach((button) => {
-    button.addEventListener('click', async () => {
-      try {
-        const chest = await getChest(button.dataset.id!)
-        applyChestToGameState(state, chest)
-        const nameInput = container.querySelector<HTMLInputElement>('#chest-name')
-        if (nameInput) nameInput.value = chest.name
-        setStatus(container, `${t('load')}: "${chest.name}"`)
-        onLoad(chest)
-      } catch {
-        setStatus(container, t('failedLoad'), true)
-      }
-    })
-  })
-
-  list.querySelectorAll<HTMLButtonElement>('.chest-btn--delete').forEach((button) => {
-    button.addEventListener('click', async () => {
-      try {
-        await deleteChest(button.dataset.id!)
-        setStatus(container, t('chestDeleted'))
-        await renderChestList(container, onLoad, state)
-      } catch {
-        setStatus(container, t('failedDelete'), true)
-      }
-    })
-  })
 }
 
 function renderEyeButton(lockId: string): string {
@@ -331,17 +240,15 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
   container.innerHTML = `
     <section class="chest-panel">
       <h2>${t('chests')}</h2>
-      <p class="panel-hint">${t('localDraftHint')}</p>
+      <p class="panel-hint">${t('databaseContributionHint')}</p>
       <label class="chest-field">
         <span>${t('name')}</span>
         <input id="chest-name" type="text" placeholder="${t('chestNamePlaceholder')}" />
       </label>
       <div class="chest-actions">
-        <button type="button" id="chest-save" class="chest-save">${t('saveDraft')}</button>
         <button type="button" id="chest-submit" class="chest-save chest-save--remote">${t('submitToDatabase')}</button>
       </div>
       <p class="chest-status" aria-live="polite"></p>
-      <ul id="chest-list" class="chest-list"></ul>
       <section class="remote-panel" aria-label="${t('databaseMatches')}">
         <h3>${t('databaseMatches')}</h3>
         <p class="remote-status" aria-live="polite">${t('sharedDatabasePrompt')}</p>
@@ -375,13 +282,6 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
     }
   }
 
-  container.querySelector<HTMLButtonElement>('#chest-save')!.addEventListener('click', async () => {
-    await saveChestFromPanel(container, state, {
-      solutionMoves: getSolutionMoves?.(),
-      onLoad,
-    })
-  })
-
   container.querySelector<HTMLButtonElement>('#chest-submit')!.addEventListener('click', async () => {
     const name = getChestName(container)
     if (!name) {
@@ -414,8 +314,6 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
       )
     }
   })
-
-  void renderChestList(container, onLoad, state)
 
   return {
     renderRemoteMatches(matches, message) {

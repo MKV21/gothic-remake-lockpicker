@@ -2,9 +2,8 @@ import './style.css'
 import { mountAdminPanel } from './game/adminPanel'
 import type { ChestRecord } from './game/chest'
 import {
-  getChestName,
+  clearChestName,
   mountChestPanel,
-  saveChestFromPanel,
   submitSolvedChestFromPanel,
   type ChestPanelController,
 } from './game/chestPanel'
@@ -15,7 +14,7 @@ import { renderSolution, solutionViewHint, type SolutionView } from './game/solu
 import { clampGateCount, createGameState, resetGameState } from './game/types'
 import { getLanguage, languageLabel, setLanguage, t, type Language } from './i18n'
 
-const APP_VERSION = '0.3.0'
+const APP_VERSION = '0.3.1'
 const state = createGameState()
 let cachedSolutionMoves: SolveMove[] | undefined
 let cachedSolutionResult: ReturnType<typeof solveLock> | undefined
@@ -282,14 +281,6 @@ async function runSolve(): Promise<void> {
 
   cachedSolutionMoves = result.moves
   await submitSolvedChestFromPanel(chestPanelEl, state, result.moves)
-
-  if (getChestName(chestPanelEl)) {
-    await saveChestFromPanel(chestPanelEl, state, {
-      solutionMoves: result.moves,
-      statusMessage: `${t('solutionSaved')} (${result.moves.length} ${t('moves')})`,
-      onLoad: handleChestLoad,
-    })
-  }
 }
 
 function remountCards(): void {
@@ -308,6 +299,7 @@ tabButtons.forEach((btn) => {
 function resetLock(): void {
   resetGameState(state)
   clearCachedSolution()
+  clearChestName(chestPanelEl)
   remountCards()
   chestPanelController?.clearRemoteMatches()
 }

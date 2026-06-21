@@ -899,37 +899,6 @@ ul {
   color: #c97a7a;
 }
 
-.chest-list {
-  margin-top: 0.875rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.chest-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.5rem 0.625rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-}
-
-.chest-item-name {
-  font-size: 0.8125rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chest-item-actions {
-  display: flex;
-  gap: 0.25rem;
-  flex-shrink: 0;
-}
-
 .chest-btn {
   padding: 0.25rem 0.5rem;
   border: 1px solid var(--border);

@@ -1,5 +1,4 @@
 import type { ChestRecord } from '../shared/lockTypes'
-import { slugifyName } from '../shared/lockValidation'
 import type { SolveMove } from './solver'
 import {
   clampGateCount,
@@ -10,11 +9,6 @@ import {
 } from './types'
 
 export type { ChestRecord }
-
-export type ChestListItem = {
-  id: string
-  name: string
-}
 
 export function gameStateToChest(
   name: string,
@@ -69,113 +63,4 @@ export function applyChestToGameState(state: GameState, chest: ChestRecord): voi
         i < gateCount && j < gateCount ? chest.links?.[i]?.[j] ?? 'none' : 'none'
     }
   }
-}
-
-type ChestBackend = {
-  list: () => Promise<ChestListItem[]>
-  get: (id: string) => Promise<ChestRecord>
-  save: (chest: ChestRecord) => Promise<ChestListItem>
-  remove: (id: string) => Promise<void>
-}
-
-// --- localStorage backend ---------------------------------------------------
-
-const STORAGE_KEY = 'gothic.chests'
-
-function readStore(): Record<string, ChestRecord> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw) as Record<string, ChestRecord>
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-function writeStore(store: Record<string, ChestRecord>): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
-}
-
-const localBackend: ChestBackend = {
-  async list() {
-    const store = readStore()
-    return Object.entries(store)
-      .map(([id, chest]) => ({ id, name: chest.name }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-  },
-  async get(id) {
-    const chest = readStore()[id]
-    if (!chest) throw new Error('Chest not found')
-    return chest
-  },
-  async save(chest) {
-    const id = slugifyName(chest.name)
-    const store = readStore()
-    store[id] = chest
-    writeStore(store)
-    return { id, name: chest.name }
-  },
-  async remove(id) {
-    const store = readStore()
-    if (!store[id]) throw new Error('Chest not found')
-    delete store[id]
-    writeStore(store)
-  },
-}
-
-// --- file backend (Vite dev API at /api/chests) -----------------------------
-
-const fileBackend: ChestBackend = {
-  async list() {
-    const response = await fetch('/api/chests')
-    if (!response.ok) throw new Error('Failed to load chest list')
-    return response.json() as Promise<ChestListItem[]>
-  },
-  async get(id) {
-    const response = await fetch(`/api/chests/${id}`)
-    if (!response.ok) throw new Error('Chest not found')
-    return response.json() as Promise<ChestRecord>
-  },
-  async save(chest) {
-    const response = await fetch('/api/chests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(chest),
-    })
-    if (!response.ok) throw new Error('Failed to save chest')
-    return response.json() as Promise<ChestListItem>
-  },
-  async remove(id) {
-    const response = await fetch(`/api/chests/${id}`, { method: 'DELETE' })
-    if (!response.ok) throw new Error('Failed to delete chest')
-  },
-}
-
-// --- backend selection ------------------------------------------------------
-
-const backendName = String(import.meta.env.VITE_STORAGE_BACKEND ?? 'local')
-  .trim()
-  .toLowerCase()
-
-const backend: ChestBackend = backendName === 'file' ? fileBackend : localBackend
-
-export function getStorageBackendName(): 'file' | 'local' {
-  return backend === fileBackend ? 'file' : 'local'
-}
-
-export function listChests(): Promise<ChestListItem[]> {
-  return backend.list()
-}
-
-export function getChest(id: string): Promise<ChestRecord> {
-  return backend.get(id)
-}
-
-export function saveChest(chest: ChestRecord): Promise<ChestListItem> {
-  return backend.save(chest)
-}
-
-export function deleteChest(id: string): Promise<void> {
-  return backend.remove(id)
 }
