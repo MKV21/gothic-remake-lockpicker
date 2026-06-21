@@ -85,6 +85,11 @@ matching, duplicate handling, source attribution, and name quality workflows.
 - Output solution as Moves, Keyboard, Xbox, PS5, or Switch input chain.
 - Seed import for upstream `data/chests` and optional religiosa1 `locks/`.
 
+## Planned Specs
+
+- [Image pin detection](docs/image-pin-detection.md): browser-local detection of
+  gate count and start pins from screenshots or smartphone photos.
+
 ## Deployment
 
 Use Vercel for this fork. GitHub Pages is not enough for the planned product
