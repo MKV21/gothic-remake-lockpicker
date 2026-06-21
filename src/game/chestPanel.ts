@@ -14,6 +14,7 @@ import {
   suggestRemoteName,
   voteRemoteName,
 } from './remote'
+import { t } from '../i18n'
 import type { SolveMove } from './solver'
 import type { GameState } from './types'
 import type { LockMatchRecord, RemoteLockRecord } from '../shared/lockTypes'
@@ -73,18 +74,40 @@ export async function saveChestFromPanel(
   const { solutionMoves, statusMessage, onLoad } = options
   const name = getChestName(container)
   if (!name) {
-    setStatus(container, 'Enter a chest name to save solution', true)
+    setStatus(container, t('enterChestNameToSave'), true)
     return false
   }
 
   try {
     const saved = await saveChest(gameStateToChest(name, state, solutionMoves))
-    setStatus(container, statusMessage ?? `Saved "${saved.name}"`)
+    setStatus(container, statusMessage ?? `${t('lockSaved')}: "${saved.name}"`)
     if (onLoad) await renderChestList(container, onLoad, state)
     return true
   } catch {
-    setStatus(container, 'Failed to save chest', true)
+    setStatus(container, t('failedSave'), true)
     return false
+  }
+}
+
+export async function submitSolvedChestFromPanel(
+  container: HTMLElement,
+  state: GameState,
+  solutionMoves: SolveMove[],
+): Promise<void> {
+  const name = getChestName(container) || 'Unnamed lock'
+
+  try {
+    const result = await submitLock(gameStateToChest(name, state, solutionMoves), {
+      submissionKind: 'auto-solve',
+    })
+    setStatus(
+      container,
+      result.duplicate
+        ? `${t('submittedToDatabase')}: ${t('nameHiddenUntilReveal')}`
+        : `${t('submittedToDatabase')}: ${t('nameHiddenUntilReveal')}`,
+    )
+  } catch (error) {
+    setStatus(container, error instanceof Error ? error.message : t('failedSubmit'), true)
   }
 }
 
@@ -100,12 +123,12 @@ async function renderChestList(
   try {
     chests = await listChests()
   } catch {
-    list.innerHTML = '<li class="chest-empty">Could not load chests</li>'
+    list.innerHTML = `<li class="chest-empty">${t('couldNotLoadChests')}</li>`
     return
   }
 
   if (chests.length === 0) {
-    list.innerHTML = '<li class="chest-empty">No saved chests yet</li>'
+    list.innerHTML = `<li class="chest-empty">${t('noSavedChests')}</li>`
     return
   }
 
@@ -115,8 +138,8 @@ async function renderChestList(
       <li class="chest-item" data-id="${chest.id}">
         <span class="chest-item-name">${escapeHtml(chest.name)}</span>
         <div class="chest-item-actions">
-          <button type="button" class="chest-btn chest-btn--load" data-id="${chest.id}">Load</button>
-          <button type="button" class="chest-btn chest-btn--delete" data-id="${chest.id}">Del</button>
+          <button type="button" class="chest-btn chest-btn--load" data-id="${chest.id}">${t('load')}</button>
+          <button type="button" class="chest-btn chest-btn--delete" data-id="${chest.id}">${t('delete')}</button>
         </div>
       </li>
     `,
@@ -130,10 +153,10 @@ async function renderChestList(
         applyChestToGameState(state, chest)
         const nameInput = container.querySelector<HTMLInputElement>('#chest-name')
         if (nameInput) nameInput.value = chest.name
-        setStatus(container, `Loaded "${chest.name}"`)
+        setStatus(container, `${t('load')}: "${chest.name}"`)
         onLoad(chest)
       } catch {
-        setStatus(container, 'Failed to load chest', true)
+        setStatus(container, t('failedLoad'), true)
       }
     })
   })
@@ -142,21 +165,34 @@ async function renderChestList(
     button.addEventListener('click', async () => {
       try {
         await deleteChest(button.dataset.id!)
-        setStatus(container, 'Chest deleted')
+        setStatus(container, t('chestDeleted'))
         await renderChestList(container, onLoad, state)
       } catch {
-        setStatus(container, 'Failed to delete chest', true)
+        setStatus(container, t('failedDelete'), true)
       }
     })
   })
 }
 
-function renderNameList(container: HTMLElement, lock: RemoteLockRecord): void {
+function renderEyeButton(lockId: string): string {
+  return `
+    <button type="button" class="eye-button reveal-name" data-lock-id="${lockId}" title="${t('revealName')}" aria-label="${t('revealName')}">
+      <span class="eye-icon" aria-hidden="true"></span>
+    </button>
+  `
+}
+
+function renderNameList(container: HTMLElement, lock: RemoteLockRecord, revealed: boolean): void {
   const list = container.querySelector<HTMLUListElement>('#remote-name-list')
   if (!list) return
 
+  if (!revealed) {
+    list.innerHTML = `<li class="chest-empty">${t('showNamesToSuggest')}</li>`
+    return
+  }
+
   if (lock.names.length === 0) {
-    list.innerHTML = '<li class="chest-empty">No names proposed yet</li>'
+    list.innerHTML = `<li class="chest-empty">${t('noNamesProposed')}</li>`
     return
   }
 
@@ -165,7 +201,7 @@ function renderNameList(container: HTMLElement, lock: RemoteLockRecord): void {
       (name) => `
       <li class="remote-name-item">
         <span class="remote-name-text">${escapeHtml(name.name)}</span>
-        <span class="remote-name-meta">${name.score} vote${name.score === 1 ? '' : 's'} · ${name.status}</span>
+        <span class="remote-name-meta">${name.score} ${t('votes')} · ${name.status}</span>
         <div class="remote-name-actions">
           <button type="button" class="chest-btn remote-vote" data-name-id="${name.id}" data-vote="1">+</button>
           <button type="button" class="chest-btn remote-vote" data-name-id="${name.id}" data-vote="-1">-</button>
@@ -176,9 +212,27 @@ function renderNameList(container: HTMLElement, lock: RemoteLockRecord): void {
     .join('')
 }
 
+function renderRemoteMatchItem(match: LockMatchRecord, revealed: boolean): string {
+  const title = revealed ? match.displayName : t('hiddenName')
+
+  return `
+    <li class="remote-match-item">
+      <div class="remote-match-main">
+        <div class="remote-lock-title">
+          <strong>${escapeHtml(title)}</strong>
+          ${revealed ? '' : renderEyeButton(match.id)}
+        </div>
+        <span>${match.gateCount} ${t('gates')} · ${t('pins')} ${match.initialPins.join(', ')} · ${t('score')} ${match.score}</span>
+      </div>
+      <button type="button" class="chest-btn remote-load" data-id="${match.id}">${t('load')}</button>
+    </li>
+  `
+}
+
 function renderRemoteLockDetails(
   container: HTMLElement,
   lock: RemoteLockRecord | undefined,
+  revealedLockIds: Set<string>,
   updateLock: (lock: RemoteLockRecord) => void,
 ): void {
   const details = container.querySelector<HTMLElement>('#remote-lock-details')
@@ -188,22 +242,36 @@ function renderRemoteLockDetails(
     details.innerHTML = ''
     return
   }
+  const revealed = revealedLockIds.has(lock.id)
+  const title = revealed ? lock.displayName : t('hiddenName')
 
   details.innerHTML = `
     <div class="remote-lock-detail">
       <div class="remote-lock-detail-header">
-        <strong>${escapeHtml(lock.displayName)}</strong>
-        <span>${lock.gateCount} gates · ${escapeHtml(lock.reviewStatus)}</span>
+        <div class="remote-lock-title">
+          <strong>${escapeHtml(title)}</strong>
+          ${revealed ? '' : renderEyeButton(lock.id)}
+        </div>
+        <span>${lock.gateCount} ${t('gates')} · ${escapeHtml(lock.reviewStatus)}</span>
       </div>
       <ul id="remote-name-list" class="remote-name-list"></ul>
-      <form id="remote-name-form" class="remote-name-form">
-        <input id="remote-name-input" type="text" placeholder="Suggest better name" />
-        <button type="submit" class="chest-btn">Suggest</button>
-      </form>
+      ${
+        revealed
+          ? `<form id="remote-name-form" class="remote-name-form">
+              <input id="remote-name-input" type="text" placeholder="${t('suggestBetterName')}" />
+              <button type="submit" class="chest-btn">${t('suggest')}</button>
+            </form>`
+          : ''
+      }
     </div>
   `
 
-  renderNameList(container, lock)
+  renderNameList(container, lock, revealed)
+
+  details.querySelector<HTMLButtonElement>('.reveal-name')?.addEventListener('click', () => {
+    revealedLockIds.add(lock.id)
+    renderRemoteLockDetails(container, lock, revealedLockIds, updateLock)
+  })
 
   details.querySelectorAll<HTMLButtonElement>('.remote-vote').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -214,11 +282,11 @@ function renderRemoteLockDetails(
       try {
         const updated = await voteRemoteName(nameId, value)
         updateLock(updated)
-        setRemoteStatus(container, 'Vote saved')
+        setRemoteStatus(container, t('voteSaved'))
       } catch (error) {
         setRemoteStatus(
           container,
-          error instanceof Error ? error.message : 'Failed to save vote',
+          error instanceof Error ? error.message : t('failedVote'),
           true,
         )
       }
@@ -230,19 +298,19 @@ function renderRemoteLockDetails(
     const input = details.querySelector<HTMLInputElement>('#remote-name-input')
     const name = input?.value.trim() ?? ''
     if (!name) {
-      setRemoteStatus(container, 'Enter a name suggestion first', true)
+      setRemoteStatus(container, t('enterNameSuggestion'), true)
       return
     }
 
     try {
       const updated = await suggestRemoteName(lock.id, name)
       updateLock(updated)
-      setRemoteStatus(container, 'Name suggestion saved')
+      setRemoteStatus(container, t('nameSuggestionSaved'))
       if (input) input.value = ''
     } catch (error) {
       setRemoteStatus(
         container,
-        error instanceof Error ? error.message : 'Failed to save name suggestion',
+        error instanceof Error ? error.message : t('failedNameSuggestion'),
         true,
       )
     }
@@ -252,24 +320,25 @@ function renderRemoteLockDetails(
 export function mountChestPanel(container: HTMLElement, options: ChestPanelOptions): ChestPanelController {
   const { state, onLoad, getSolutionMoves } = options
   let activeRemoteLock: RemoteLockRecord | undefined
+  const revealedLockIds = new Set<string>()
 
   container.innerHTML = `
     <section class="chest-panel">
-      <h2>Chests</h2>
-      <p class="panel-hint">Local saves stay private drafts. Submit complete locks to the shared database when they are ready.</p>
+      <h2>${t('chests')}</h2>
+      <p class="panel-hint">${t('localDraftHint')}</p>
       <label class="chest-field">
-        <span>Name</span>
-        <input id="chest-name" type="text" placeholder="Chest name" />
+        <span>${t('name')}</span>
+        <input id="chest-name" type="text" placeholder="${t('chestNamePlaceholder')}" />
       </label>
       <div class="chest-actions">
-        <button type="button" id="chest-save" class="chest-save">Save draft</button>
-        <button type="button" id="chest-submit" class="chest-save chest-save--remote">Submit to database</button>
+        <button type="button" id="chest-save" class="chest-save">${t('saveDraft')}</button>
+        <button type="button" id="chest-submit" class="chest-save chest-save--remote">${t('submitToDatabase')}</button>
       </div>
       <p class="chest-status" aria-live="polite"></p>
       <ul id="chest-list" class="chest-list"></ul>
-      <section class="remote-panel" aria-label="Shared database">
-        <h3>Database matches</h3>
-        <p class="remote-status" aria-live="polite">Enter gate count and start pins to search the shared database.</p>
+      <section class="remote-panel" aria-label="${t('databaseMatches')}">
+        <h3>${t('databaseMatches')}</h3>
+        <p class="remote-status" aria-live="polite">${t('sharedDatabasePrompt')}</p>
         <ul id="remote-match-list" class="remote-match-list"></ul>
         <div id="remote-lock-details"></div>
       </section>
@@ -278,7 +347,7 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
 
   const updateActiveRemoteLock = (lock: RemoteLockRecord): void => {
     activeRemoteLock = lock
-    renderRemoteLockDetails(container, activeRemoteLock, updateActiveRemoteLock)
+    renderRemoteLockDetails(container, activeRemoteLock, revealedLockIds, updateActiveRemoteLock)
   }
 
   const loadRemoteLock = async (id: string): Promise<void> => {
@@ -287,13 +356,14 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
       updateActiveRemoteLock(lock)
       const chest = chestFromRemoteLock(lock)
       applyChestToGameState(state, chest)
-      setChestName(container, chest.name)
-      setStatus(container, `Loaded database lock "${chest.name}"`)
-      onLoad(chest)
+      const revealed = revealedLockIds.has(lock.id)
+      setChestName(container, revealed ? chest.name : '')
+      setStatus(container, revealed ? `${t('load')}: "${chest.name}"` : t('nameHiddenUntilReveal'))
+      onLoad(revealed ? chest : { ...chest, name: '' })
     } catch (error) {
       setRemoteStatus(
         container,
-        error instanceof Error ? error.message : 'Failed to load database lock',
+        error instanceof Error ? error.message : t('failedDatabaseLoad'),
         true,
       )
     }
@@ -309,23 +379,24 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
   container.querySelector<HTMLButtonElement>('#chest-submit')!.addEventListener('click', async () => {
     const name = getChestName(container)
     if (!name) {
-      setStatus(container, 'Enter a chest name before submitting', true)
+      setStatus(container, t('enterChestNameBeforeSubmitting'), true)
       return
     }
 
     try {
       const result = await submitLock(gameStateToChest(name, state, getSolutionMoves?.()))
+      revealedLockIds.add(result.lock.id)
       updateActiveRemoteLock(result.lock)
       setStatus(
         container,
         result.duplicate
-          ? `Existing database lock updated with "${result.lock.displayName}"`
-          : `Submitted "${result.lock.displayName}" to database`,
+          ? `${t('submitToDatabase')}: "${result.lock.displayName}"`
+          : `${t('submitToDatabase')}: "${result.lock.displayName}"`,
       )
     } catch (error) {
       setStatus(
         container,
-        error instanceof Error ? error.message : 'Failed to submit chest',
+        error instanceof Error ? error.message : t('failedSubmit'),
         true,
       )
     }
@@ -338,26 +409,25 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
       const list = container.querySelector<HTMLUListElement>('#remote-match-list')
       if (!list) return
 
-      setRemoteStatus(container, message ?? `${matches.length} database match${matches.length === 1 ? '' : 'es'}`)
+      setRemoteStatus(container, message ?? `${matches.length} ${t('databaseMatches')}`)
 
       if (matches.length === 0) {
-        list.innerHTML = '<li class="chest-empty">No matching database locks</li>'
+        list.innerHTML = `<li class="chest-empty">${t('noDatabaseMatches')}</li>`
         return
       }
 
       list.innerHTML = matches
-        .map(
-          (match) => `
-          <li class="remote-match-item">
-            <div class="remote-match-main">
-              <strong>${escapeHtml(match.displayName)}</strong>
-              <span>${match.gateCount} gates · pins ${match.initialPins.join(', ')} · score ${match.score}</span>
-            </div>
-            <button type="button" class="chest-btn remote-load" data-id="${match.id}">Load</button>
-          </li>
-        `,
-        )
+        .map((match) => renderRemoteMatchItem(match, revealedLockIds.has(match.id)))
         .join('')
+
+      list.querySelectorAll<HTMLButtonElement>('.reveal-name').forEach((button) => {
+        button.addEventListener('click', () => {
+          const id = button.dataset.lockId
+          if (!id) return
+          revealedLockIds.add(id)
+          this.renderRemoteMatches(matches, message)
+        })
+      })
 
       list.querySelectorAll<HTMLButtonElement>('.remote-load').forEach((button) => {
         button.addEventListener('click', () => {
@@ -366,7 +436,7 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
         })
       })
     },
-    clearRemoteMatches(message = 'Enter gate count and start pins to search the shared database.') {
+    clearRemoteMatches(message = t('sharedDatabasePrompt')) {
       const list = container.querySelector<HTMLUListElement>('#remote-match-list')
       if (list) list.innerHTML = ''
       setRemoteStatus(container, message)

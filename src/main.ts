@@ -1,14 +1,21 @@
 import './style.css'
 import { mountAdminPanel } from './game/adminPanel'
 import type { ChestRecord } from './game/chest'
-import { mountChestPanel, saveChestFromPanel, type ChestPanelController } from './game/chestPanel'
+import {
+  getChestName,
+  mountChestPanel,
+  saveChestFromPanel,
+  submitSolvedChestFromPanel,
+  type ChestPanelController,
+} from './game/chestPanel'
 import { mountLockCards, updateLockCards } from './game/lockCards'
 import { matchLocks } from './game/remote'
 import { solveLock, type SolveMove } from './game/solver'
 import { renderSolution, solutionViewHint, type SolutionView } from './game/solutionPanel'
 import { clampGateCount, createGameState, resetGameState } from './game/types'
+import { getLanguage, languageLabel, setLanguage, t, type Language } from './i18n'
 
-const APP_VERSION = '0.2.0'
+const APP_VERSION = '0.3.0'
 const state = createGameState()
 let cachedSolutionMoves: SolveMove[] | undefined
 let cachedSolutionResult: ReturnType<typeof solveLock> | undefined
@@ -21,63 +28,73 @@ type TabId = 'setup' | 'solution'
 
 const MOBILE_MQ = window.matchMedia('(max-width: 767px)')
 const showAdminPanel = new URLSearchParams(window.location.search).has('admin')
+const currentLanguage = getLanguage()
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <main class="layout" data-active-tab="setup">
   <section class="game-area" aria-label="Game area">
     <header class="app-header">
-      <h1 class="app-title">Gothic Lockpick Solver</h1>
-      <p class="app-subtitle">Set up a lock, then press <strong>Solve</strong> for the shortest click sequence.</p>
+      <div class="app-header-row">
+        <h1 class="app-title">${t('appTitle')}</h1>
+        <label class="language-select">
+          <span>${t('language')}</span>
+          <select id="language-picker" aria-label="${t('language')}">
+            <option value="en" ${currentLanguage === 'en' ? 'selected' : ''}>${languageLabel('en')}</option>
+            <option value="de" ${currentLanguage === 'de' ? 'selected' : ''}>${languageLabel('de')}</option>
+          </select>
+        </label>
+      </div>
+      <p class="app-subtitle">${t('appSubtitle')}</p>
       <p class="app-meta">
-        Version v${APP_VERSION} · Solver based on
+        ${t('appVersion')} v${APP_VERSION} · ${t('attributionBasedOn')}
         <a href="https://xetoxyc.github.io/gothic-remake-lockpicker/" target="_blank" rel="noreferrer">Xetoxyc's web solver</a>
-        (<a href="https://github.com/Xetoxyc/gothic-remake-lockpicker" target="_blank" rel="noreferrer">source</a>) ·
-        <a href="https://github.com/MKV21/gothic-lockpick-database" target="_blank" rel="noreferrer">This GitHub fork</a> ·
-        <a href="?admin=1">Admin</a>
+        (<a href="https://github.com/Xetoxyc/gothic-remake-lockpicker" target="_blank" rel="noreferrer">${t('attributionSource')}</a>) ·
+        <a href="https://github.com/MKV21/gothic-lockpick-database" target="_blank" rel="noreferrer">${t('attributionFork')}</a> ·
+        <a href="?admin=1">${t('admin')}</a>
       </p>
     </header>
 
-    <details class="help-panel" aria-label="How to use">
-      <summary class="help-title">How it works</summary>
+    <details class="help-panel" aria-label="${t('helpHowItWorks')}">
+      <summary class="help-title">${t('helpHowItWorks')}</summary>
       <div class="help-grid">
         <div class="help-item help-item--wide">
-          <h3>Orientation</h3>
-          <p>In-game, the metal plates stack toward you. <strong>Gate 1</strong> is the plate furthest away; the highest gate number is the front plate where the lockpick enters. This tool lists gates top to bottom in that same order.</p>
-          <p>On each plate, <strong>holes 1–7</strong> run left to right along the top row — match the red labels in the screenshot when setting start and target pins.</p>
+          <h3>${t('helpOrientationTitle')}</h3>
+          <p>${t('helpOrientationText1')}</p>
+          <p>${t('helpOrientationText2')}</p>
           <figure class="help-figure">
             <img
               src="${import.meta.env.BASE_URL}lock-orientation.png"
-              alt="Gothic lock plates numbered 1 through 6 from back to front, with holes 1 through 7 labeled left to right on the rearmost plate"
+              alt="${t('helpImageAlt')}"
               width="794"
               height="601"
               loading="lazy"
             />
-            <figcaption>Gate numbers (1 = back) and hole numbers (1 = left) as shown in-game.</figcaption>
+            <figcaption>${t('helpOrientationCaption')}</figcaption>
           </figure>
         </div>
         <div class="help-item">
-          <h3>Holes (1–7)</h3>
-          <p>Each gate has seven holes, left to right. Pick where the pin <em>starts</em> and where it must <em>end up</em>.</p>
+          <h3>${t('helpHolesTitle')}</h3>
+          <p>${t('helpHolesText')}</p>
           <ul class="help-legend">
             <li>
               <span class="legend-swatch legend-swatch--start" aria-hidden="true"></span>
-              <span class="help-desktop-only"><strong>Start pin</strong> — left-click a hole (gold inner ring)</span>
-              <span class="help-mobile-only"><strong>Start pin</strong> — select Start mode, then tap a hole (gold inner ring)</span>
+              <span class="help-desktop-only">${t('helpStartDesktop')}</span>
+              <span class="help-mobile-only">${t('helpStartMobile')}</span>
             </li>
             <li>
               <span class="legend-swatch legend-swatch--target" aria-hidden="true"></span>
-              <span class="help-desktop-only"><strong>Target pin</strong> — right-click a hole (green outer ring). New gates default to hole 4.</span>
-              <span class="help-mobile-only"><strong>Target pin</strong> — select Target mode, then tap a hole (green outer ring). New gates default to hole 4.</span>
+              <span class="help-desktop-only">${t('helpTargetDesktop')}</span>
+              <span class="help-mobile-only">${t('helpTargetMobile')}</span>
             </li>
           </ul>
         </div>
         <div class="help-item">
-          <h3>Link grid</h3>
-          <p>Next to each gate is a small grid. Each column is another gate number. Click a cell to cycle the link type when <em>this</em> gate moves:</p>
+          <h3>${t('helpLinksTitle')}</h3>
+          <p>${t('helpLinksText')}</p>
           <ul class="help-legend help-legend--links">
-            <li><span class="link-legend link-legend--none">·</span> <strong>None</strong> — no effect on that gate</li>
-            <li><span class="link-legend link-legend--same">S</span> <strong>Same (S)</strong> — linked gate moves the same direction</li>
-            <li><span class="link-legend link-legend--opposite">O</span> <strong>Opposite (O)</strong> — linked gate moves the other way</li>
+            <li><span class="link-legend link-legend--none">·</span> ${t('helpLinksNone')}</li>
+            <li><span class="link-legend link-legend--same">S</span> ${t('helpLinksSame')}</li>
+            <li><span class="link-legend link-legend--opposite">O</span> ${t('helpLinksOpposite')}</li>
           </ul>
         </div>
       </div>
@@ -85,15 +102,15 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 
     <div class="gate-toolbar">
       <label class="gate-select">
-        <span>Number of gates</span>
-        <select id="gate-count" aria-label="Number of gates">
-          <option value="4">4 gates</option>
-          <option value="5">5 gates</option>
-          <option value="6" selected>6 gates</option>
-          <option value="7">7 gates</option>
+        <span>${t('gateCount')}</span>
+        <select id="gate-count" aria-label="${t('gateCount')}">
+          <option value="4">4 ${t('gates')}</option>
+          <option value="5">5 ${t('gates')}</option>
+          <option value="6" selected>6 ${t('gates')}</option>
+          <option value="7">7 ${t('gates')}</option>
         </select>
       </label>
-      <button type="button" id="reset-lock" class="reset-btn">Reset</button>
+      <button type="button" id="reset-lock" class="reset-btn">${t('reset')}</button>
     </div>
     <div id="lock-cards"></div>
   </section>
@@ -104,8 +121,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     </div>
     <div class="sidebar-solution">
       <div class="solution-header">
-        <h2>Solution</h2>
-        <div class="solution-view-toggle" role="radiogroup" aria-label="Solution format">
+        <h2>${t('solution')}</h2>
+        <div class="solution-view-toggle" role="radiogroup" aria-label="${t('solutionFormat')}">
           <label class="solution-view-option">
             <input type="radio" name="solution-view" value="moves" checked />
             <span>Moves</span>
@@ -134,9 +151,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     ${showAdminPanel ? '<div class="sidebar-admin"><div id="admin-panel"></div></div>' : ''}
   </aside>
 
-  <nav class="tab-bar" role="tablist" aria-label="Main">
-    <button type="button" class="tab-btn" role="tab" data-tab="setup" aria-selected="true">Setup</button>
-    <button type="button" class="tab-btn" role="tab" data-tab="solution" aria-selected="false">Solution</button>
+  <nav class="tab-bar" role="tablist" aria-label="${t('mainTabs')}">
+    <button type="button" class="tab-btn" role="tab" data-tab="setup" aria-selected="true">${t('setupTab')}</button>
+    <button type="button" class="tab-btn" role="tab" data-tab="solution" aria-selected="false">${t('solution')}</button>
   </nav>
 </main>
 `
@@ -151,6 +168,7 @@ const solutionViewInputs = document.querySelectorAll<HTMLInputElement>(
 )
 const gateCountEl = document.querySelector<HTMLSelectElement>('#gate-count')!
 const resetLockEl = document.querySelector<HTMLButtonElement>('#reset-lock')!
+const languagePickerEl = document.querySelector<HTMLSelectElement>('#language-picker')!
 const tabButtons = document.querySelectorAll<HTMLButtonElement>('.tab-bar [role="tab"]')
 const adminPanelEl = document.querySelector<HTMLDivElement>('#admin-panel')
 
@@ -216,7 +234,7 @@ function scheduleRemoteMatch(): void {
   const pins = currentStartPins()
   if (pins[0] === null) {
     matchRequestId++
-    chestPanelController?.clearRemoteMatches('Set the first start pin to search database matches.')
+    chestPanelController?.clearRemoteMatches(t('startFirstPinToSearch'))
     return
   }
 
@@ -229,7 +247,7 @@ function scheduleRemoteMatch(): void {
     } catch (error) {
       if (requestId !== matchRequestId) return
       chestPanelController?.clearRemoteMatches(
-        error instanceof Error ? `Database unavailable: ${error.message}` : 'Database unavailable',
+        error instanceof Error ? `${t('databaseUnavailable')}: ${error.message}` : t('databaseUnavailable'),
       )
     }
   }, 250)
@@ -263,11 +281,15 @@ async function runSolve(): Promise<void> {
   if (!result.ok) return
 
   cachedSolutionMoves = result.moves
-  await saveChestFromPanel(chestPanelEl, state, {
-    solutionMoves: result.moves,
-    statusMessage: `Solution saved (${result.moves.length} moves)`,
-    onLoad: handleChestLoad,
-  })
+  await submitSolvedChestFromPanel(chestPanelEl, state, result.moves)
+
+  if (getChestName(chestPanelEl)) {
+    await saveChestFromPanel(chestPanelEl, state, {
+      solutionMoves: result.moves,
+      statusMessage: `${t('solutionSaved')} (${result.moves.length} ${t('moves')})`,
+      onLoad: handleChestLoad,
+    })
+  }
 }
 
 function remountCards(): void {
@@ -307,6 +329,11 @@ solutionViewInputs.forEach((input) => {
 })
 
 resetLockEl.addEventListener('click', resetLock)
+
+languagePickerEl.addEventListener('change', () => {
+  setLanguage(languagePickerEl.value as Language)
+  window.location.reload()
+})
 
 syncGateSelect()
 syncSolutionHint()

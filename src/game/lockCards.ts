@@ -6,6 +6,7 @@ import {
   type GameState,
   type LinkType,
 } from './types'
+import { t } from '../i18n'
 
 type PinField = 'startPin' | 'correctPin'
 
@@ -30,7 +31,7 @@ function renderHole(
       class="hole"
       data-card="${cardIndex}"
       data-hole="${holeIndex}"
-      aria-label="Card ${cardIndex + 1}, hole ${holeIndex + 1}"
+      aria-label="${t('gate')} ${cardIndex + 1}, ${t('hole')} ${holeIndex + 1}"
       title="${holeIndex + 1}"
     >
       <span class="hole-socket"></span>
@@ -56,7 +57,7 @@ function renderLinkCell(
       data-card="${cardIndex}"
       data-target="${targetIndex}"
       ${isSelf ? 'disabled' : ''}
-      aria-label="Card ${cardIndex + 1} link to ${targetIndex + 1}: ${isSelf ? 'self' : link}"
+      aria-label="${t('gate')} ${cardIndex + 1} ${t('linkTo')} ${targetIndex + 1}: ${isSelf ? t('self') : link}"
       title="${isSelf ? '' : `${link || 'none'} → ${targetIndex + 1}`}"
     >${label}</button>
   `
@@ -68,11 +69,11 @@ function renderLinkGrid(cardIndex: number, links: LinkType[][], gateCount: numbe
   ).join('')
 
   return `
-    <div class="link-grid" aria-label="Gate ${cardIndex + 1} links to other gates">
-      <span class="link-grid-title">Links</span>
+    <div class="link-grid" aria-label="${t('gate')} ${cardIndex + 1} ${t('links')}">
+      <span class="link-grid-title">${t('links')}</span>
       <div class="link-grid-cells">${cells}</div>
       <div class="link-grid-labels">
-        ${Array.from({ length: gateCount }, (_, i) => `<span title="Gate ${i + 1}">${i + 1}</span>`).join('')}
+        ${Array.from({ length: gateCount }, (_, i) => `<span title="${t('gate')} ${i + 1}">${i + 1}</span>`).join('')}
       </div>
     </div>
   `
@@ -90,9 +91,9 @@ function renderCard(
 
   return `
     <article class="card" data-card="${cardIndex}">
-      <header class="card-label" title="Gate ${cardIndex + 1}">${cardIndex + 1}</header>
+      <header class="card-label" title="${t('gate')} ${cardIndex + 1}">${cardIndex + 1}</header>
       <div class="card-face">
-        <div class="holes" aria-label="Gate ${cardIndex + 1} holes">${holes}</div>
+        <div class="holes" aria-label="${t('gate')} ${cardIndex + 1} ${t('hole')}">${holes}</div>
       </div>
       ${renderLinkGrid(cardIndex, links, gateCount)}
     </article>
@@ -151,7 +152,7 @@ function updateLinkCells(cardEl: HTMLElement, cardIndex: number, links: LinkType
     const link = links[cardIndex][targetIndex]
     cell.textContent = linkLabel(link) || '·'
     cell.title = `${link || 'none'} → ${targetIndex + 1}`
-    cell.setAttribute('aria-label', `Card ${cardIndex + 1} link to ${targetIndex + 1}: ${link}`)
+    cell.setAttribute('aria-label', `${t('gate')} ${cardIndex + 1} ${t('linkTo')} ${targetIndex + 1}: ${link}`)
   })
 }
 
@@ -176,9 +177,9 @@ export function mountLockCards(
   const { signal } = mountController
 
   container.innerHTML = `
-    <div class="pin-mode" role="group" aria-label="Pin mode">
-      <button type="button" class="pin-mode-btn pin-mode-btn--start pin-mode-btn--active" data-pin-mode="start">Start</button>
-      <button type="button" class="pin-mode-btn pin-mode-btn--target" data-pin-mode="target">Target</button>
+    <div class="pin-mode" role="group" aria-label="${t('pinMode')}">
+      <button type="button" class="pin-mode-btn pin-mode-btn--start pin-mode-btn--active" data-pin-mode="start">${t('start')}</button>
+      <button type="button" class="pin-mode-btn pin-mode-btn--target" data-pin-mode="target">${t('target')}</button>
     </div>
     <div class="cards-grid">
       ${cards
@@ -186,7 +187,7 @@ export function mountLockCards(
         .map((card, index) => renderCard(index, card, links, gateCount))
         .join('')}
     </div>
-    <button type="button" id="solve-btn" class="solve-btn">Solve lock</button>
+    <button type="button" id="solve-btn" class="solve-btn">${t('solveLock')}</button>
   `
 
   updatePinModeButtons(container)

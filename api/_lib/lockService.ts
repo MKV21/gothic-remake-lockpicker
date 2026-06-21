@@ -270,6 +270,48 @@ async function insertReport(options: {
   )
 }
 
+async function hasPriorAutoSolveReport(
+  lockId: string,
+  visitorHash: string | undefined,
+): Promise<boolean> {
+  if (!visitorHash) return false
+
+  const result = await query<{ exists: boolean }>(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM lock_reports
+        WHERE lock_id = $1
+          AND visitor_hash = $2
+          AND source = 'auto-solve'
+      ) AS exists
+    `,
+    [lockId, visitorHash],
+  )
+
+  return result.rows[0]?.exists === true
+}
+
+async function updateLockCanonicalData(lockId: string, chest: NormalizedChest): Promise<void> {
+  await query(
+    `
+      UPDATE locks
+      SET
+        solution_pins = $2::jsonb,
+        links = $3::jsonb,
+        solution_moves = $4::jsonb,
+        updated_at = now()
+      WHERE id = $1
+    `,
+    [
+      lockId,
+      JSON.stringify(chest.solutionPins),
+      JSON.stringify(chest.links),
+      JSON.stringify(chest.solutionMoves),
+    ],
+  )
+}
+
 export async function getLock(
   id: string,
   options: { includeHidden?: boolean } = {},
@@ -292,6 +334,15 @@ export async function createOrReportLock(
   const existing = await getLockRowByFingerprint(chest.fingerprint)
 
   if (existing) {
+    const shouldUpdateAutoSolve =
+      source === 'auto-solve' &&
+      existing.review_status === 'pending' &&
+      (await hasPriorAutoSolveReport(existing.id, identity.visitorHash))
+
+    if (shouldUpdateAutoSolve) {
+      await updateLockCanonicalData(existing.id, chest)
+    }
+
     if (identity.seedSourceId) {
       await query(
         `
@@ -331,11 +382,11 @@ export async function createOrReportLock(
         initial_pins,
         solution_pins,
         links,
-      solution_moves,
-      fingerprint,
-      review_status,
-      seed_source_id
-    )
+        solution_moves,
+        fingerprint,
+        review_status,
+        seed_source_id
+      )
       VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6, $7, $8)
       RETURNING id
     `,

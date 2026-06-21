@@ -12,11 +12,14 @@ async function readJson<T>(response: Response): Promise<T> {
   return body as T
 }
 
-export async function submitLock(chest: ChestRecord): Promise<SubmitLockResult> {
+export async function submitLock(
+  chest: ChestRecord,
+  options: { submissionKind?: 'manual' | 'auto-solve' } = {},
+): Promise<SubmitLockResult> {
   const response = await fetch('/api/locks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(chest),
+    body: JSON.stringify({ ...chest, submissionKind: options.submissionKind ?? 'manual' }),
   })
   return readJson<SubmitLockResult>(response)
 }

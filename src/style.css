@@ -75,6 +75,13 @@ ul {
   margin-bottom: 1rem;
 }
 
+.app-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .app-title {
   font-size: 1.375rem;
   letter-spacing: 0.02em;
@@ -103,6 +110,30 @@ ul {
 
 .app-meta a:hover {
   color: #fff;
+}
+
+.language-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.language-select select {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.language-select select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .help-panel {
@@ -993,6 +1024,59 @@ ul {
   color: var(--text-muted);
 }
 
+.remote-lock-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.eye-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.eye-button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.eye-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.eye-icon {
+  position: relative;
+  width: 0.875rem;
+  height: 0.5rem;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+.eye-icon::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.25rem;
+  height: 0.25rem;
+  border-radius: 50%;
+  background: currentColor;
+  transform: translate(-50%, -50%);
+}
+
 .remote-lock-detail {
   margin-top: 0.75rem;
   padding: 0.75rem;
@@ -1039,7 +1123,7 @@ ul {
 
 .admin-login {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(4rem, 0.55fr) minmax(0, 1fr) auto;
   gap: 0.5rem;
   margin-bottom: 0.625rem;
 }
@@ -1264,6 +1348,16 @@ ul {
     font-size: 1.125rem;
   }
 
+  .app-header-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .language-select {
+    align-self: flex-start;
+  }
+
   .app-subtitle {
     font-size: 0.8125rem;
   }
@@ -1323,5 +1417,9 @@ ul {
     margin-bottom: 0;
     padding-bottom: 0;
     border-bottom: none;
+  }
+
+  .admin-login {
+    grid-template-columns: 1fr;
   }
 }

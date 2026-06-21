@@ -11,6 +11,10 @@ import {
 } from '../_lib/http.js'
 import type { ChestRecord } from '../../src/shared/lockTypes.js'
 
+type SubmitLockPayload = ChestRecord & {
+  submissionKind?: 'manual' | 'auto-solve'
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (req.method !== 'POST') {
     sendMethodNotAllowed(res, ['POST'])
@@ -20,8 +24,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   try {
     const identity = getVisitorIdentity(req, res)
     await enforceRateLimit({ action: 'submit-lock', ...identity, limit: 30, windowHours: 24 })
-    const payload = await readJsonBody<ChestRecord>(req)
-    const result = await createOrReportLock(payload, identity)
+    const payload = await readJsonBody<SubmitLockPayload>(req)
+    const result = await createOrReportLock(payload, {
+      ...identity,
+      source: payload.submissionKind === 'auto-solve' ? 'auto-solve' : 'anonymous',
+    })
     sendJson(res, result.duplicate ? 200 : 201, result)
   } catch (error) {
     handleApiError(res, error)

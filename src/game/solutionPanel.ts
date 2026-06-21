@@ -1,6 +1,7 @@
 import { groupInputChain, movesToInputChain } from './inputChain'
 import { OUTPUT_PROFILES, type OutputProfile } from './outputProfiles'
-import { formatMove, type SolveMove, type SolveResult } from './solver'
+import { type SolveMove, type SolveResult } from './solver'
+import { t } from '../i18n'
 
 export type SolutionView = OutputProfile
 
@@ -62,7 +63,8 @@ function renderMoveList(moves: SolveMove[]): string {
 
   return runs
     .map((run, index) => {
-      const label = formatMove(run.move)
+      const direction = run.move.direction === 'left' ? 'Left (A)' : 'Right (D)'
+      const label = `${t('gate')} ${run.move.card} - ${direction}`
       const repeat = run.count > 1 ? ` <span class="solution-repeat">×${run.count}</span>` : ''
       return `<li class="solution-step"><span class="solution-index">${index + 1}.</span> ${label}${repeat}</li>`
     })
@@ -80,7 +82,7 @@ export function renderSolution(
   }
 
   if (result.moves.length === 0) {
-    container.innerHTML = `<li class="solution-empty">Already solved</li>`
+    container.innerHTML = `<li class="solution-empty">${t('alreadySolved')}</li>`
     return
   }
 
@@ -92,12 +94,12 @@ export function renderSolution(
 
 export function solutionViewHint(view: SolutionView): string {
   if (view === 'keyboard') {
-    return 'Keyboard input chain. R resets the cursor to the front gate; W/S move between gates; A/D slide left/right. Consecutive identical keys are grouped.'
+    return t('keyboardHint')
   }
 
   if (view !== 'moves') {
-    return 'Controller input chain using the selected controller labels. Up/Down move between gates; Left/Right slide pins. Consecutive identical inputs are grouped.'
+    return t('controllerHint')
   }
 
-  return 'Shortest legal move sequence. In-game: Left (A), Right (D). Consecutive identical presses are grouped.'
+  return t('shortestMovesHint')
 }
