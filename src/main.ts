@@ -14,7 +14,7 @@ import { renderSolution, solutionViewHint, type SolutionView } from './game/solu
 import { clampGateCount, createGameState, resetGameState } from './game/types'
 import { getLanguage, languageLabel, setLanguage, t, type Language } from './i18n'
 
-const APP_VERSION = '0.3.3'
+const APP_VERSION = '0.3.4'
 const state = createGameState()
 let cachedSolutionMoves: SolveMove[] | undefined
 let cachedSolutionResult: ReturnType<typeof solveLock> | undefined
@@ -114,7 +114,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div id="lock-cards"></div>
   </section>
 
-  <aside class="sidebar" aria-label="Sidebar">
+  <aside class="sidebar${showAdminPanel ? ' sidebar--admin' : ''}" aria-label="Sidebar">
     <div class="sidebar-chest">
       <div id="chest-panel"></div>
     </div>

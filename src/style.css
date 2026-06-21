@@ -800,6 +800,12 @@ ul {
   border-top: 1px solid var(--border);
 }
 
+.sidebar--admin .sidebar-solution {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+}
+
 .tab-bar {
   display: none;
 }
@@ -1315,6 +1321,17 @@ ul {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+
+  .layout[data-active-tab='setup'] .sidebar-admin {
+    display: block;
+    padding: 1rem;
+    margin-top: 0;
+    background: var(--bg);
+  }
+
+  .layout[data-active-tab='solution'] .sidebar-admin {
+    display: none;
   }
 
   .tab-bar {
