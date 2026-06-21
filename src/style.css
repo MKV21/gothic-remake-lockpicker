@@ -1123,7 +1123,8 @@ ul {
 
 .admin-login {
   display: grid;
-  grid-template-columns: minmax(4rem, 0.55fr) minmax(0, 1fr) auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  align-items: stretch;
   gap: 0.5rem;
   margin-bottom: 0.625rem;
 }
@@ -1139,7 +1140,8 @@ ul {
 }
 
 .admin-login .chest-save {
-  width: auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .admin-actions,
