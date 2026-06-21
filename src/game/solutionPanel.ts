@@ -96,7 +96,7 @@ export function solutionViewHint(view: SolutionView): string {
   }
 
   if (view !== 'moves') {
-    return 'Controller input chain using the selected controller labels. D-pad up/down move between gates; D-pad left/right slide pins. Consecutive identical inputs are grouped.'
+    return 'Controller input chain using the selected controller labels. Up/Down move between gates; Left/Right slide pins. Consecutive identical inputs are grouped.'
   }
 
   return 'Shortest legal move sequence. In-game: Left (A), Right (D). Consecutive identical presses are grouped.'

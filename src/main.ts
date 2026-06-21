@@ -7,6 +7,7 @@ import { solveLock, type SolveMove } from './game/solver'
 import { renderSolution, solutionViewHint, type SolutionView } from './game/solutionPanel'
 import { clampGateCount, createGameState, resetGameState } from './game/types'
 
+const APP_VERSION = '0.1.0'
 const state = createGameState()
 let cachedSolutionMoves: SolveMove[] | undefined
 let cachedSolutionResult: ReturnType<typeof solveLock> | undefined
@@ -25,6 +26,12 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <header class="app-header">
       <h1 class="app-title">Gothic Lockpick Solver</h1>
       <p class="app-subtitle">Set up a lock, then press <strong>Solve</strong> for the shortest click sequence.</p>
+      <p class="app-meta">
+        Version v${APP_VERSION} · Solver based on
+        <a href="https://xetoxyc.github.io/gothic-remake-lockpicker/" target="_blank" rel="noreferrer">Xetoxyc's web solver</a>
+        (<a href="https://github.com/Xetoxyc/gothic-remake-lockpicker" target="_blank" rel="noreferrer">source</a>) ·
+        <a href="https://github.com/MKV21/gothic-lockpick-database" target="_blank" rel="noreferrer">This GitHub fork</a>
+      </p>
     </header>
 
     <details class="help-panel" aria-label="How to use">
