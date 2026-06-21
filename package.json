@@ -1,0 +1,25 @@
+{
+  "name": "gothic",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && tsc -p tsconfig.server.json && vite build",
+    "check:server": "tsc -p tsconfig.server.json",
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "db:migrate": "tsx tools/migrate.ts",
+    "seed:import": "tsx tools/import-seeds.ts",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.22.4",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12"
+  },
+  "dependencies": {
+    "pg": "^8.22.0"
+  }
+}

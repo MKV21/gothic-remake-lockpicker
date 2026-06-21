@@ -1,0 +1,29 @@
+import { createOrReportLock } from '../_lib/lockService'
+import { enforceRateLimit } from '../_lib/rateLimit'
+import {
+  getVisitorIdentity,
+  handleApiError,
+  readJsonBody,
+  sendJson,
+  sendMethodNotAllowed,
+  type ApiRequest,
+  type ApiResponse,
+} from '../_lib/http'
+import type { ChestRecord } from '../../src/shared/lockTypes'
+
+export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  if (req.method !== 'POST') {
+    sendMethodNotAllowed(res, ['POST'])
+    return
+  }
+
+  try {
+    const identity = getVisitorIdentity(req, res)
+    await enforceRateLimit({ action: 'submit-lock', ...identity, limit: 30, windowHours: 24 })
+    const payload = await readJsonBody<ChestRecord>(req)
+    const result = await createOrReportLock(payload, identity)
+    sendJson(res, result.duplicate ? 200 : 201, result)
+  } catch (error) {
+    handleApiError(res, error)
+  }
+}

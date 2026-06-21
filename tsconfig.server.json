@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "moduleResolution": "bundler"
+  },
+  "include": [
+    "api/**/*.ts",
+    "tools/**/*.ts",
+    "src/shared/**/*.ts",
+    "src/game/movement.ts",
+    "src/game/solver.ts",
+    "src/game/types.ts"
+  ]
+}
