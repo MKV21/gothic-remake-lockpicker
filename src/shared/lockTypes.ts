@@ -2,6 +2,8 @@ export type Direction = 'left' | 'right'
 
 export type LinkType = 'none' | 'same' | 'opposite'
 
+export type ReviewStatus = 'approved' | 'pending' | 'rejected'
+
 export type SolveMove = {
   card: number
   direction: Direction
@@ -22,7 +24,7 @@ export type LockNameRecord = {
   id: string
   name: string
   score: number
-  status: 'approved' | 'pending' | 'rejected'
+  status: ReviewStatus
   source?: string | null
 }
 
@@ -35,7 +37,7 @@ export type RemoteLockRecord = {
   solutionMoves: SolveMove[]
   fingerprint: string
   displayName: string
-  reviewStatus: 'approved' | 'pending' | 'rejected'
+  reviewStatus: ReviewStatus
   names: LockNameRecord[]
 }
 
@@ -45,6 +47,6 @@ export type LockMatchRecord = {
   initialPins: number[]
   displayName: string
   score: number
-  reviewStatus: 'approved' | 'pending' | 'rejected'
+  reviewStatus: ReviewStatus
   names: LockNameRecord[]
 }

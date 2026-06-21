@@ -1,6 +1,12 @@
 import { assertAdmin } from '../../_lib/adminAuth.js'
 import { ApiError } from '../../_lib/db.js'
-import { deleteAdminLock, getLock, updateAdminLock } from '../../_lib/lockService.js'
+import {
+  deleteAdminLock,
+  getLock,
+  isStatusOnlyAdminLockPatch,
+  setAdminLockReviewStatus,
+  updateAdminLock,
+} from '../../_lib/lockService.js'
 import {
   getQueryParam,
   handleApiError,
@@ -11,6 +17,7 @@ import {
   type ApiResponse,
 } from '../../_lib/http.js'
 import type { ChestRecord } from '../../../src/shared/lockTypes.js'
+import type { ReviewStatus } from '../../../src/shared/lockTypes.js'
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (req.method !== 'GET' && req.method !== 'PATCH' && req.method !== 'DELETE') {
@@ -35,8 +42,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     }
 
     const body = await readJsonBody<
-      ChestRecord & { reviewStatus?: 'approved' | 'pending' | 'rejected' }
+      Partial<ChestRecord> & { reviewStatus?: ReviewStatus }
     >(req)
+    if (isStatusOnlyAdminLockPatch(body)) {
+      sendJson(res, 200, { lock: await setAdminLockReviewStatus(id, body.reviewStatus) })
+      return
+    }
+
     sendJson(res, 200, { lock: await updateAdminLock(id, body) })
   } catch (error) {
     handleApiError(res, error)

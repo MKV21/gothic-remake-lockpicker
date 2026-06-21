@@ -5,7 +5,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   HIDDEN_LOCK_SCORE_THRESHOLD,
+  isReviewStatus,
   isLockPubliclyVisible,
+  isStatusOnlyAdminLockPatch,
 } from '../api/_lib/lockService'
 import type { RemoteLockRecord } from '../src/shared/lockTypes'
 
@@ -49,4 +51,16 @@ test('public lock visibility hides rejected locks', () => {
 test('schema enforces one vote per visitor and name', async () => {
   const migration = await readFile(path.join(rootDir, 'db/migrations/001_init.sql'), 'utf8')
   assert.match(migration, /UNIQUE\s*\(\s*name_id\s*,\s*visitor_hash\s*\)/)
+})
+
+test('admin approve patch is status-only', () => {
+  assert.equal(isReviewStatus('approved'), true)
+  assert.equal(isReviewStatus('archived'), false)
+
+  assert.equal(isStatusOnlyAdminLockPatch({ reviewStatus: 'approved' }), true)
+  assert.equal(isStatusOnlyAdminLockPatch({ reviewStatus: 'pending' }), true)
+  assert.equal(isStatusOnlyAdminLockPatch({ reviewStatus: 'rejected' }), true)
+  assert.equal(isStatusOnlyAdminLockPatch({ reviewStatus: 'approved', name: 'Chest' }), false)
+  assert.equal(isStatusOnlyAdminLockPatch({ reviewStatus: 'archived' }), false)
+  assert.equal(isStatusOnlyAdminLockPatch(null), false)
 })

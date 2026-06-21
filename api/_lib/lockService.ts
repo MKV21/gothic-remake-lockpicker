@@ -1,4 +1,4 @@
-import type { ChestRecord, LinkType, LockMatchRecord, LockNameRecord, RemoteLockRecord, SolveMove } from '../../src/shared/lockTypes.js'
+import type { ChestRecord, LinkType, LockMatchRecord, LockNameRecord, RemoteLockRecord, ReviewStatus, SolveMove } from '../../src/shared/lockTypes.js'
 import {
   CARD_COUNT,
   createFingerprint,
@@ -22,7 +22,7 @@ type LockRow = {
   links: unknown
   solution_moves: unknown
   fingerprint: string
-  review_status: 'approved' | 'pending' | 'rejected'
+  review_status: ReviewStatus
   names: unknown
 }
 
@@ -47,6 +47,21 @@ export type LockMutationResult = {
 export type NameVoteResult = {
   lock?: RemoteLockRecord
   hidden?: boolean
+}
+
+export function isReviewStatus(value: unknown): value is ReviewStatus {
+  return value === 'approved' || value === 'pending' || value === 'rejected'
+}
+
+export function isStatusOnlyAdminLockPatch(
+  payload: unknown,
+): payload is { reviewStatus: ReviewStatus } {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
+
+  const keys = Object.keys(payload)
+  return keys.length === 1 && keys[0] === 'reviewStatus' && isReviewStatus(
+    (payload as { reviewStatus?: unknown }).reviewStatus,
+  )
 }
 
 function jsonValue<T>(value: unknown, fallback: T): T {
@@ -609,7 +624,7 @@ export async function listReports(): Promise<ReportRow[]> {
 
 export async function setNameStatus(
   nameId: string,
-  status: 'approved' | 'pending' | 'rejected',
+  status: ReviewStatus,
 ): Promise<RemoteLockRecord> {
   const result = await query<{ lock_id: string }>(
     `
@@ -658,7 +673,7 @@ export async function listAdminLocks(): Promise<RemoteLockRecord[]> {
 
 export async function updateAdminLock(
   id: string,
-  payload: ChestRecord & { reviewStatus?: 'approved' | 'pending' | 'rejected' },
+  payload: Partial<ChestRecord> & { reviewStatus?: ReviewStatus },
 ): Promise<RemoteLockRecord> {
   const existing = await getLock(id, { includeHidden: true })
   const normalized = normalizeIncomingLock({
@@ -672,9 +687,7 @@ export async function updateAdminLock(
 
   if (
     payload.reviewStatus !== undefined &&
-    payload.reviewStatus !== 'approved' &&
-    payload.reviewStatus !== 'pending' &&
-    payload.reviewStatus !== 'rejected'
+    !isReviewStatus(payload.reviewStatus)
   ) {
     throw new ApiError(400, 'reviewStatus must be approved, pending, or rejected')
   }
@@ -717,6 +730,24 @@ export async function updateAdminLock(
     source: 'admin',
   })
 
+  return getLock(id, { includeHidden: true })
+}
+
+export async function setAdminLockReviewStatus(
+  id: string,
+  reviewStatus: ReviewStatus,
+): Promise<RemoteLockRecord> {
+  const result = await query<{ id: string }>(
+    `
+      UPDATE locks
+      SET review_status = $2, updated_at = now()
+      WHERE id = $1
+      RETURNING id
+    `,
+    [id, reviewStatus],
+  )
+
+  if (result.rows.length === 0) throw new ApiError(404, 'Lock not found')
   return getLock(id, { includeHidden: true })
 }
 

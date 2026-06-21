@@ -1,8 +1,8 @@
-import type { ChestRecord, RemoteLockRecord } from '../shared/lockTypes'
+import type { ChestRecord, RemoteLockRecord, ReviewStatus } from '../shared/lockTypes'
 import { t } from '../i18n'
 
 type AdminLockPayload = ChestRecord & {
-  reviewStatus: 'approved' | 'pending' | 'rejected'
+  reviewStatus: ReviewStatus
 }
 
 function escapeHtml(text: string): string {
@@ -166,16 +166,17 @@ export function mountAdminPanel(container: HTMLElement): void {
   const loadLocks = async (): Promise<void> => {
     try {
       const body = await adminRequest<{ locks: RemoteLockRecord[] }>('/api/admin/locks')
+      const selectedLockId = selectedLock?.id
       locks = body.locks
       renderLockList(container, locks, (lock) => {
         selectedLock = lock
         renderEditor(container, lock)
       })
       setStatus(container, `${t('loaded')}: ${locks.length}`)
-      if (!selectedLock && locks[0]) {
-        selectedLock = locks[0]
-        renderEditor(container, selectedLock)
-      }
+      selectedLock = selectedLockId
+        ? locks.find((lock) => lock.id === selectedLockId)
+        : locks[0]
+      renderEditor(container, selectedLock)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('failedLoad')
       setStatus(
@@ -234,7 +235,6 @@ export function mountAdminPanel(container: HTMLElement): void {
           {
             method: 'PATCH',
             body: JSON.stringify({
-              ...lockToPayload(selectedLock),
               reviewStatus: 'approved',
             }),
           },
