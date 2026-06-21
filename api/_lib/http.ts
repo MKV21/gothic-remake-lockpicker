@@ -96,8 +96,17 @@ export function parseCookies(req: ApiRequest): Record<string, string> {
   )
 }
 
+export function getVisitorHashSalt(): string {
+  const salt = process.env.VISITOR_HASH_SALT
+  if (salt) return salt
+  if (process.env.NODE_ENV === 'production') {
+    throw new ApiError(503, 'VISITOR_HASH_SALT is not configured')
+  }
+  return 'local-development-salt'
+}
+
 function hashValue(value: string): string {
-  const salt = process.env.VISITOR_HASH_SALT ?? 'local-development-salt'
+  const salt = getVisitorHashSalt()
   return createHash('sha256').update(`${salt}:${value}`).digest('hex')
 }
 

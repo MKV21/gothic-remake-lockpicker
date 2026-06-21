@@ -21,13 +21,26 @@ export function getPool(): pg.Pool {
     throw new ApiError(503, 'DATABASE_URL is not configured')
   }
 
-  const isLocal = /localhost|127\.0\.0\.1/.test(connectionString)
   pool = new Pool({
     connectionString,
-    ssl: isLocal ? false : { rejectUnauthorized: false },
+    ssl: getDatabaseSslConfig(connectionString),
   })
 
   return pool
+}
+
+export function getDatabaseSslConfig(connectionString: string): false | { rejectUnauthorized: true } {
+  if (isLocalDatabaseUrl(connectionString)) return false
+  return { rejectUnauthorized: true }
+}
+
+function isLocalDatabaseUrl(connectionString: string): boolean {
+  try {
+    const hostname = new URL(connectionString).hostname
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]'
+  } catch {
+    return /localhost|127\.0\.0\.1/.test(connectionString)
+  }
 }
 
 export async function query<T extends pg.QueryResultRow>(

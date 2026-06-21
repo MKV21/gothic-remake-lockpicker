@@ -21,6 +21,9 @@ and keyboard/controller output profiles.
 This is the running change list for this fork. Add new user-visible fork
 changes here as they land.
 
+- `0.3.6`
+  - Hardened production security defaults for database TLS verification,
+    expiring admin sessions, and visitor hash salt configuration.
 - `0.3.5`
   - Made Admin approve status-only and refreshed selected editor data after
     reloading locks.
