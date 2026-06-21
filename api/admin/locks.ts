@@ -1,5 +1,5 @@
 import { assertAdmin } from '../_lib/adminAuth.js'
-import { listReports } from '../_lib/lockService.js'
+import { listAdminLocks } from '../_lib/lockService.js'
 import {
   handleApiError,
   sendJson,
@@ -16,7 +16,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 
   try {
     assertAdmin(req)
-    sendJson(res, 200, { reports: await listReports() })
+    sendJson(res, 200, { locks: await listAdminLocks() })
   } catch (error) {
     handleApiError(res, error)
   }

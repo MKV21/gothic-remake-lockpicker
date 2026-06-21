@@ -1,3 +1,4 @@
+import { assertAdmin } from '../_lib/adminAuth.js'
 import { ApiError } from '../_lib/db.js'
 import { setNameStatus } from '../_lib/lockService.js'
 import {
@@ -8,13 +9,6 @@ import {
   type ApiRequest,
   type ApiResponse,
 } from '../_lib/http.js'
-
-function assertAdmin(req: ApiRequest): void {
-  const token = process.env.ADMIN_TOKEN
-  if (!token) throw new ApiError(503, 'ADMIN_TOKEN is not configured')
-  const auth = req.headers.authorization ?? ''
-  if (auth !== `Bearer ${token}`) throw new ApiError(401, 'Unauthorized')
-}
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (req.method !== 'POST') {

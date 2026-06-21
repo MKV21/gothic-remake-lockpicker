@@ -1,4 +1,5 @@
 import './style.css'
+import { mountAdminPanel } from './game/adminPanel'
 import type { ChestRecord } from './game/chest'
 import { mountChestPanel, saveChestFromPanel, type ChestPanelController } from './game/chestPanel'
 import { mountLockCards, updateLockCards } from './game/lockCards'
@@ -7,7 +8,7 @@ import { solveLock, type SolveMove } from './game/solver'
 import { renderSolution, solutionViewHint, type SolutionView } from './game/solutionPanel'
 import { clampGateCount, createGameState, resetGameState } from './game/types'
 
-const APP_VERSION = '0.1.0'
+const APP_VERSION = '0.2.0'
 const state = createGameState()
 let cachedSolutionMoves: SolveMove[] | undefined
 let cachedSolutionResult: ReturnType<typeof solveLock> | undefined
@@ -19,6 +20,7 @@ let matchRequestId = 0
 type TabId = 'setup' | 'solution'
 
 const MOBILE_MQ = window.matchMedia('(max-width: 767px)')
+const showAdminPanel = new URLSearchParams(window.location.search).has('admin')
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <main class="layout" data-active-tab="setup">
@@ -30,7 +32,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         Version v${APP_VERSION} · Solver based on
         <a href="https://xetoxyc.github.io/gothic-remake-lockpicker/" target="_blank" rel="noreferrer">Xetoxyc's web solver</a>
         (<a href="https://github.com/Xetoxyc/gothic-remake-lockpicker" target="_blank" rel="noreferrer">source</a>) ·
-        <a href="https://github.com/MKV21/gothic-lockpick-database" target="_blank" rel="noreferrer">This GitHub fork</a>
+        <a href="https://github.com/MKV21/gothic-lockpick-database" target="_blank" rel="noreferrer">This GitHub fork</a> ·
+        <a href="?admin=1">Admin</a>
       </p>
     </header>
 
@@ -128,6 +131,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <p class="panel-hint" id="solution-hint"></p>
       <ul id="inputs"></ul>
     </div>
+    ${showAdminPanel ? '<div class="sidebar-admin"><div id="admin-panel"></div></div>' : ''}
   </aside>
 
   <nav class="tab-bar" role="tablist" aria-label="Main">
@@ -148,6 +152,7 @@ const solutionViewInputs = document.querySelectorAll<HTMLInputElement>(
 const gateCountEl = document.querySelector<HTMLSelectElement>('#gate-count')!
 const resetLockEl = document.querySelector<HTMLButtonElement>('#reset-lock')!
 const tabButtons = document.querySelectorAll<HTMLButtonElement>('.tab-bar [role="tab"]')
+const adminPanelEl = document.querySelector<HTMLDivElement>('#admin-panel')
 
 function isMobileLayout(): boolean {
   return MOBILE_MQ.matches
@@ -314,3 +319,5 @@ chestPanelController = mountChestPanel(chestPanelEl, {
   getSolutionMoves: () => cachedSolutionMoves,
 })
 scheduleRemoteMatch()
+
+if (adminPanelEl) mountAdminPanel(adminPanelEl)

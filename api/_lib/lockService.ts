@@ -36,6 +36,8 @@ type ReportRow = {
   created_at: string
 }
 
+export const HIDDEN_LOCK_SCORE_THRESHOLD = -5
+
 function jsonValue<T>(value: unknown, fallback: T): T {
   if (value === null || value === undefined) return fallback
   if (typeof value === 'string') return JSON.parse(value) as T
@@ -48,6 +50,18 @@ function displayNameFor(lock: { fingerprint: string; names: LockNameRecord[] }):
     lock.names.find((name) => name.status === 'pending')?.name ??
     `Lock ${lock.fingerprint}`
   )
+}
+
+export function isLockPubliclyVisible(lock: RemoteLockRecord): boolean {
+  if (lock.reviewStatus === 'rejected') return false
+
+  const activeNameScores = lock.names
+    .filter((name) => name.status !== 'rejected')
+    .map((name) => name.score)
+
+  if (activeNameScores.length === 0) return false
+
+  return Math.max(...activeNameScores) > HIDDEN_LOCK_SCORE_THRESHOLD
 }
 
 function rowToLock(row: LockRow): RemoteLockRecord {
@@ -256,10 +270,17 @@ async function insertReport(options: {
   )
 }
 
-export async function getLock(id: string): Promise<RemoteLockRecord> {
+export async function getLock(
+  id: string,
+  options: { includeHidden?: boolean } = {},
+): Promise<RemoteLockRecord> {
   const row = await getLockRow(id)
   if (!row) throw new ApiError(404, 'Lock not found')
-  return rowToLock(row)
+  const lock = rowToLock(row)
+  if (!options.includeHidden && !isLockPubliclyVisible(lock)) {
+    throw new ApiError(404, 'Lock not found')
+  }
+  return lock
 }
 
 export async function createOrReportLock(
@@ -300,7 +321,7 @@ export async function createOrReportLock(
       source,
       visitorHash: identity.visitorHash,
     })
-    return { lock: await getLock(existing.id), duplicate: true }
+    return { lock: await getLock(existing.id, { includeHidden: true }), duplicate: true }
   }
 
   const result = await query<{ id: string }>(
@@ -347,7 +368,7 @@ export async function createOrReportLock(
     visitorHash: identity.visitorHash,
   })
 
-  return { lock: await getLock(lockId), duplicate: false }
+  return { lock: await getLock(lockId, { includeHidden: true }), duplicate: false }
 }
 
 export async function findMatches(gateCountValue: string | undefined, pinsValue: string | undefined): Promise<LockMatchRecord[]> {
@@ -390,6 +411,7 @@ export async function findMatches(gateCountValue: string | undefined, pinsValue:
 
   return result.rows
     .map(rowToLock)
+    .filter(isLockPubliclyVisible)
     .filter((lock) => matchPins(lock.initialPins, pins))
     .map((lock) => ({
       id: lock.id,
@@ -417,7 +439,7 @@ export async function suggestName(
     source: identity.source ?? 'anonymous',
     visitorHash: identity.visitorHash,
   })
-  return getLock(lockId)
+  return getLock(lockId, { includeHidden: true })
 }
 
 export async function voteName(
@@ -434,15 +456,20 @@ export async function voteName(
   const lockId = nameResult.rows[0]?.lock_id
   if (!lockId) throw new ApiError(404, 'Name not found')
 
-  await query(
+  const voteResult = await query<{ id: string }>(
     `
       INSERT INTO name_votes (name_id, visitor_hash, vote)
       VALUES ($1, $2, $3)
       ON CONFLICT (name_id, visitor_hash)
-      DO UPDATE SET vote = EXCLUDED.vote, updated_at = now()
+      DO NOTHING
+      RETURNING id
     `,
     [nameId, visitorHash, value],
   )
+
+  if (voteResult.rows.length === 0) {
+    throw new ApiError(409, 'You have already voted on this name')
+  }
 
   await query(
     `
@@ -455,7 +482,7 @@ export async function voteName(
     [nameId],
   )
 
-  return getLock(lockId)
+  return getLock(lockId, { includeHidden: true })
 }
 
 export async function listReports(): Promise<ReportRow[]> {
@@ -485,5 +512,109 @@ export async function setNameStatus(
   )
   const lockId = result.rows[0]?.lock_id
   if (!lockId) throw new ApiError(404, 'Name not found')
-  return getLock(lockId)
+  return getLock(lockId, { includeHidden: true })
+}
+
+export async function listAdminLocks(): Promise<RemoteLockRecord[]> {
+  const result = await query<LockRow>(
+    `
+      SELECT
+        l.*,
+        COALESCE(
+          jsonb_agg(
+            jsonb_build_object(
+              'id', n.id,
+              'name', n.name,
+              'score', n.score,
+              'status', n.status,
+              'source', n.source
+            )
+            ORDER BY
+              CASE n.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+              n.score DESC,
+              n.created_at ASC
+          ) FILTER (WHERE n.id IS NOT NULL),
+          '[]'::jsonb
+        ) AS names
+      FROM locks l
+      LEFT JOIN lock_names n ON n.lock_id = l.id
+      GROUP BY l.id
+      ORDER BY l.updated_at DESC, l.created_at DESC
+    `,
+  )
+
+  return result.rows.map(rowToLock)
+}
+
+export async function updateAdminLock(
+  id: string,
+  payload: ChestRecord & { reviewStatus?: 'approved' | 'pending' | 'rejected' },
+): Promise<RemoteLockRecord> {
+  const existing = await getLock(id, { includeHidden: true })
+  const normalized = normalizeIncomingLock({
+    name: payload.name ?? existing.displayName,
+    gateCount: payload.gateCount ?? existing.gateCount,
+    initialPins: payload.initialPins ?? existing.initialPins,
+    solutionPins: payload.solutionPins ?? existing.solutionPins,
+    links: payload.links ?? existing.links,
+    solutionMoves: payload.solutionMoves ?? existing.solutionMoves,
+  })
+
+  if (
+    payload.reviewStatus !== undefined &&
+    payload.reviewStatus !== 'approved' &&
+    payload.reviewStatus !== 'pending' &&
+    payload.reviewStatus !== 'rejected'
+  ) {
+    throw new ApiError(400, 'reviewStatus must be approved, pending, or rejected')
+  }
+
+  const duplicate = await getLockRowByFingerprint(normalized.fingerprint)
+  if (duplicate && duplicate.id !== id) {
+    throw new ApiError(409, 'Another lock already has this gate count and initial pins')
+  }
+
+  await query(
+    `
+      UPDATE locks
+      SET
+        gate_count = $2,
+        initial_pins = $3::jsonb,
+        solution_pins = $4::jsonb,
+        links = $5::jsonb,
+        solution_moves = $6::jsonb,
+        fingerprint = $7,
+        review_status = COALESCE($8, review_status),
+        updated_at = now()
+      WHERE id = $1
+    `,
+    [
+      id,
+      normalized.gateCount,
+      JSON.stringify(normalized.initialPins),
+      JSON.stringify(normalized.solutionPins),
+      JSON.stringify(normalized.links),
+      JSON.stringify(normalized.solutionMoves),
+      normalized.fingerprint,
+      payload.reviewStatus ?? null,
+    ],
+  )
+
+  await upsertName({
+    lockId: id,
+    name: normalized.name,
+    status: 'approved',
+    source: 'admin',
+  })
+
+  return getLock(id, { includeHidden: true })
+}
+
+export async function deleteAdminLock(id: string): Promise<void> {
+  const result = await query<{ id: string }>(
+    'DELETE FROM locks WHERE id = $1 RETURNING id',
+    [id],
+  )
+
+  if (result.rows.length === 0) throw new ApiError(404, 'Lock not found')
 }
