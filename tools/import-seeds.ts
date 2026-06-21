@@ -146,7 +146,7 @@ for (const item of seeds) {
   })
   if (result.duplicate) duplicates++
   else created++
-  console.log(`${result.duplicate ? 'updated' : 'created'} ${result.lock.displayName}`)
+  console.log(`${result.duplicate ? 'updated' : 'created'} ${result.lock?.displayName ?? item.chest.name}`)
 }
 
 console.log(`seed import complete: ${created} created, ${duplicates} updated`)

@@ -5,8 +5,6 @@ type AdminLockPayload = ChestRecord & {
   reviewStatus: 'approved' | 'pending' | 'rejected'
 }
 
-const ADMIN_TOKEN_KEY = 'gothic.adminToken'
-
 function escapeHtml(text: string): string {
   return text
     .replaceAll('&', '&amp;')
@@ -15,34 +13,35 @@ function escapeHtml(text: string): string {
     .replaceAll('"', '&quot;')
 }
 
-function getStoredToken(): string {
-  return sessionStorage.getItem(ADMIN_TOKEN_KEY) ?? ''
-}
-
-function setStoredToken(token: string): void {
-  if (token) {
-    sessionStorage.setItem(ADMIN_TOKEN_KEY, token)
-  } else {
-    sessionStorage.removeItem(ADMIN_TOKEN_KEY)
-  }
-}
-
 async function adminRequest<T>(
-  token: string,
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const headers = new Headers(options.headers)
+  if (options.body !== undefined && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+  headers.set('X-Admin-CSRF', '1')
+
   const response = await fetch(path, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    },
+    credentials: 'same-origin',
+    headers,
   })
   const body = (await response.json().catch(() => ({}))) as { error?: string }
   if (!response.ok) throw new Error(body.error ?? `Request failed with ${response.status}`)
   return body as T
+}
+
+async function createAdminSession(password: string): Promise<void> {
+  await adminRequest<{ ok: true }>('/api/admin/session', {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  })
+}
+
+async function clearAdminSession(): Promise<void> {
+  await adminRequest<{ ok: true }>('/api/admin/session', { method: 'DELETE' })
 }
 
 function lockToPayload(lock: RemoteLockRecord): AdminLockPayload {
@@ -136,7 +135,6 @@ function renderLockList(
 }
 
 export function mountAdminPanel(container: HTMLElement): void {
-  let token = getStoredToken()
   let locks: RemoteLockRecord[] = []
   let selectedLock: RemoteLockRecord | undefined
 
@@ -144,7 +142,7 @@ export function mountAdminPanel(container: HTMLElement): void {
     <section class="admin-panel">
       <h2>${t('admin')}</h2>
       <p class="panel-hint">${t('adminHint')}</p>
-      <form id="admin-login" class="admin-login" method="post" action="/api/admin/locks" autocomplete="on">
+      <form id="admin-login" class="admin-login" method="post" action="/api/admin/session" autocomplete="on">
         <input id="admin-username" name="username" type="text" value="admin" autocomplete="username" />
         <input id="admin-password" name="password" type="password" placeholder="${t('adminPassword')}" autocomplete="current-password" />
         <button type="submit" class="chest-save">${t('unlock')}</button>
@@ -160,13 +158,8 @@ export function mountAdminPanel(container: HTMLElement): void {
   `
 
   const loadLocks = async (): Promise<void> => {
-    if (!token) {
-      setStatus(container, t('enterAdminPassword'), true)
-      return
-    }
-
     try {
-      const body = await adminRequest<{ locks: RemoteLockRecord[] }>(token, '/api/admin/locks')
+      const body = await adminRequest<{ locks: RemoteLockRecord[] }>('/api/admin/locks')
       locks = body.locks
       renderLockList(container, locks, (lock) => {
         selectedLock = lock
@@ -178,27 +171,45 @@ export function mountAdminPanel(container: HTMLElement): void {
         renderEditor(container, selectedLock)
       }
     } catch (error) {
-      setStatus(container, error instanceof Error ? error.message : t('failedLoad'), true)
+      const message = error instanceof Error ? error.message : t('failedLoad')
+      setStatus(
+        container,
+        message === 'Unauthorized' ? t('enterAdminPassword') : message,
+        true,
+      )
     }
   }
 
-  container.querySelector<HTMLFormElement>('#admin-login')?.addEventListener('submit', (event) => {
+  container.querySelector<HTMLFormElement>('#admin-login')?.addEventListener('submit', async (event) => {
     event.preventDefault()
     const input = container.querySelector<HTMLInputElement>('#admin-password')
-    token = input?.value.trim() ?? ''
-    setStoredToken(token)
-    void loadLocks()
+    const password = input?.value.trim() ?? ''
+    if (!password) {
+      setStatus(container, t('enterAdminPassword'), true)
+      return
+    }
+
+    try {
+      await createAdminSession(password)
+      await loadLocks()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('failedLoad')
+      setStatus(
+        container,
+        message === 'Unauthorized' ? t('enterAdminPassword') : message,
+        true,
+      )
+    }
   })
 
   container.querySelector<HTMLButtonElement>('#admin-refresh')?.addEventListener('click', () => {
     void loadLocks()
   })
 
-  container.querySelector<HTMLButtonElement>('#admin-lock-session')?.addEventListener('click', () => {
-    token = ''
+  container.querySelector<HTMLButtonElement>('#admin-lock-session')?.addEventListener('click', async () => {
+    await clearAdminSession().catch(() => undefined)
     locks = []
     selectedLock = undefined
-    setStoredToken('')
     const input = container.querySelector<HTMLInputElement>('#admin-password')
     if (input) input.value = ''
     renderLockList(container, [], () => undefined)
@@ -215,7 +226,6 @@ export function mountAdminPanel(container: HTMLElement): void {
       try {
         const payload = JSON.parse(textarea?.value ?? '{}') as AdminLockPayload
         const body = await adminRequest<{ lock: RemoteLockRecord }>(
-          token,
           `/api/admin/locks/${encodeURIComponent(selectedLock.id)}`,
           {
             method: 'PATCH',
@@ -238,7 +248,6 @@ export function mountAdminPanel(container: HTMLElement): void {
 
       try {
         await adminRequest<{ ok: true }>(
-          token,
           `/api/admin/locks/${encodeURIComponent(selectedLock.id)}`,
           { method: 'DELETE' },
         )
@@ -252,5 +261,5 @@ export function mountAdminPanel(container: HTMLElement): void {
     }
   })
 
-  if (token) void loadLocks()
+  void loadLocks()
 }

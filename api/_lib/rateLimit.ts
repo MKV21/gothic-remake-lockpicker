@@ -5,9 +5,31 @@ export async function enforceRateLimit(options: {
   visitorHash: string
   ipHash: string
   limit: number
+  ipLimit?: number
   windowHours: number
 }): Promise<void> {
-  const scopeKey = `${options.visitorHash}:${options.action}`
+  await enforceRateLimitBucket({
+    ...options,
+    limit: options.limit,
+    scopeKey: `visitor:${options.visitorHash}:${options.action}`,
+  })
+
+  await enforceRateLimitBucket({
+    ...options,
+    visitorHash: '',
+    limit: options.ipLimit ?? Math.max(options.limit * 5, options.limit),
+    scopeKey: `ip:${options.ipHash}:${options.action}`,
+  })
+}
+
+async function enforceRateLimitBucket(options: {
+  action: string
+  visitorHash: string
+  ipHash: string
+  limit: number
+  scopeKey: string
+  windowHours: number
+}): Promise<void> {
   const interval = `${options.windowHours} hours`
   const result = await query<{ count: number }>(
     `
@@ -26,7 +48,7 @@ export async function enforceRateLimit(options: {
         updated_at = now()
       RETURNING count
     `,
-    [scopeKey, options.action, options.visitorHash, options.ipHash, interval],
+    [options.scopeKey, options.action, options.visitorHash || null, options.ipHash, interval],
   )
 
   if ((result.rows[0]?.count ?? 0) > options.limit) {

@@ -281,7 +281,13 @@ function renderRemoteLockDetails(
 
       try {
         const updated = await voteRemoteName(nameId, value)
-        updateLock(updated)
+        if (updated.hidden) {
+          renderRemoteLockDetails(container, undefined, revealedLockIds, updateLock)
+          setRemoteStatus(container, t('lockHiddenAfterVote'))
+          return
+        }
+        if (!updated.lock) throw new Error(t('failedVote'))
+        updateLock(updated.lock)
         setRemoteStatus(container, t('voteSaved'))
       } catch (error) {
         setRemoteStatus(
@@ -385,6 +391,13 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
 
     try {
       const result = await submitLock(gameStateToChest(name, state, getSolutionMoves?.()))
+      if (!result.lock) {
+        setStatus(
+          container,
+          result.hidden ? t('submittedHiddenDuplicate') : t('submittedToDatabase'),
+        )
+        return
+      }
       revealedLockIds.add(result.lock.id)
       updateActiveRemoteLock(result.lock)
       setStatus(

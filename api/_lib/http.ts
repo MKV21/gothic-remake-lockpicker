@@ -10,6 +10,20 @@ export type ApiRequest = IncomingMessage & {
 export type ApiResponse = ServerResponse
 
 const VISITOR_COOKIE = 'glpd_visitor'
+const MAX_JSON_BODY_BYTES = 64 * 1024
+
+export function appendSetCookie(res: ApiResponse, cookie: string): void {
+  const existing = res.getHeader('Set-Cookie')
+  if (Array.isArray(existing)) {
+    res.setHeader('Set-Cookie', [...existing, cookie])
+    return
+  }
+  if (typeof existing === 'string') {
+    res.setHeader('Set-Cookie', [existing, cookie])
+    return
+  }
+  res.setHeader('Set-Cookie', cookie)
+}
 
 export function sendJson(
   res: ApiResponse,
@@ -33,15 +47,22 @@ export function handleApiError(res: ApiResponse, error: unknown): void {
     return
   }
 
-  sendJson(res, 500, { error: error instanceof Error ? error.message : 'Internal server error' })
+  console.error(error)
+  sendJson(res, 500, { error: 'Internal server error' })
 }
 
 export async function readJsonBody<T>(req: ApiRequest): Promise<T> {
   if (req.body !== undefined) return req.body as T
 
   const chunks: Buffer[] = []
+  let byteLength = 0
   for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    byteLength += buffer.byteLength
+    if (byteLength > MAX_JSON_BODY_BYTES) {
+      throw new ApiError(413, 'Request body too large')
+    }
+    chunks.push(buffer)
   }
 
   const raw = Buffer.concat(chunks).toString('utf8')
@@ -93,8 +114,8 @@ export function getVisitorIdentity(req: ApiRequest, res: ApiResponse): VisitorId
 
   if (!cookies[VISITOR_COOKIE]) {
     const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
-    res.setHeader(
-      'Set-Cookie',
+    appendSetCookie(
+      res,
       `${VISITOR_COOKIE}=${encodeURIComponent(visitorId)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${secure}`,
     )
   }

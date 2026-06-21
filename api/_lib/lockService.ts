@@ -38,6 +38,17 @@ type ReportRow = {
 
 export const HIDDEN_LOCK_SCORE_THRESHOLD = -5
 
+export type LockMutationResult = {
+  lock?: RemoteLockRecord
+  duplicate: boolean
+  hidden?: boolean
+}
+
+export type NameVoteResult = {
+  lock?: RemoteLockRecord
+  hidden?: boolean
+}
+
 function jsonValue<T>(value: unknown, fallback: T): T {
   if (value === null || value === undefined) return fallback
   if (typeof value === 'string') return JSON.parse(value) as T
@@ -79,6 +90,17 @@ function rowToLock(row: LockRow): RemoteLockRecord {
     displayName: '',
   }
   return { ...lock, displayName: displayNameFor(lock) }
+}
+
+function toPublicLock(lock: RemoteLockRecord): RemoteLockRecord {
+  const names = lock.names.filter(
+    (name) => name.status !== 'rejected' && name.score > HIDDEN_LOCK_SCORE_THRESHOLD,
+  )
+  return {
+    ...lock,
+    names,
+    displayName: displayNameFor({ fingerprint: lock.fingerprint, names }),
+  }
 }
 
 function normalizedFromRow(row: LockRow): NormalizedChest {
@@ -319,21 +341,46 @@ export async function getLock(
   const row = await getLockRow(id)
   if (!row) throw new ApiError(404, 'Lock not found')
   const lock = rowToLock(row)
-  if (!options.includeHidden && !isLockPubliclyVisible(lock)) {
+  if (options.includeHidden) return lock
+
+  const publicLock = toPublicLock(lock)
+  if (!isLockPubliclyVisible(publicLock)) {
     throw new ApiError(404, 'Lock not found')
   }
-  return lock
+  return publicLock
+}
+
+async function publicMutationResult(
+  lockId: string,
+  duplicate: boolean,
+  includeHidden: boolean,
+): Promise<LockMutationResult> {
+  if (includeHidden) {
+    return { lock: await getLock(lockId, { includeHidden: true }), duplicate }
+  }
+
+  try {
+    return { lock: await getLock(lockId), duplicate }
+  } catch (error) {
+    if (error instanceof ApiError && error.statusCode === 404) {
+      return { duplicate, hidden: true }
+    }
+    throw error
+  }
 }
 
 export async function createOrReportLock(
   payload: ChestRecord,
   identity: { visitorHash?: string; ipHash?: string; source?: string; seedSourceId?: string } = {},
-): Promise<{ lock: RemoteLockRecord; duplicate: boolean }> {
+): Promise<LockMutationResult> {
   const chest = normalizeIncomingLock(payload)
   const source = identity.source ?? 'anonymous'
+  const includeHidden = source === 'seed' || source === 'admin'
   const existing = await getLockRowByFingerprint(chest.fingerprint)
 
   if (existing) {
+    const existingLock = rowToLock(existing)
+    const canAttachName = includeHidden || isLockPubliclyVisible(toPublicLock(existingLock))
     const shouldUpdateAutoSolve =
       source === 'auto-solve' &&
       existing.review_status === 'pending' &&
@@ -365,14 +412,16 @@ export async function createOrReportLock(
       source,
       isConflict: !isSameCanonicalData(chest, normalizedFromRow(existing)),
     })
-    await upsertName({
-      lockId: existing.id,
-      name: chest.name,
-      status: source === 'seed' ? 'approved' : 'pending',
-      source,
-      visitorHash: identity.visitorHash,
-    })
-    return { lock: await getLock(existing.id, { includeHidden: true }), duplicate: true }
+    if (canAttachName) {
+      await upsertName({
+        lockId: existing.id,
+        name: chest.name,
+        status: source === 'seed' ? 'approved' : 'pending',
+        source,
+        visitorHash: identity.visitorHash,
+      })
+    }
+    return publicMutationResult(existing.id, true, includeHidden)
   }
 
   const result = await query<{ id: string }>(
@@ -419,7 +468,7 @@ export async function createOrReportLock(
     visitorHash: identity.visitorHash,
   })
 
-  return { lock: await getLock(lockId, { includeHidden: true }), duplicate: false }
+  return publicMutationResult(lockId, false, includeHidden)
 }
 
 export async function findMatches(gateCountValue: string | undefined, pinsValue: string | undefined): Promise<LockMatchRecord[]> {
@@ -462,6 +511,7 @@ export async function findMatches(gateCountValue: string | undefined, pinsValue:
 
   return result.rows
     .map(rowToLock)
+    .map(toPublicLock)
     .filter(isLockPubliclyVisible)
     .filter((lock) => matchPins(lock.initialPins, pins))
     .map((lock) => ({
@@ -482,7 +532,8 @@ export async function suggestName(
   name: string,
   identity: { visitorHash?: string; source?: string } = {},
 ): Promise<RemoteLockRecord> {
-  await getLock(lockId)
+  const includeHidden = identity.source === 'admin'
+  await getLock(lockId, { includeHidden })
   await upsertName({
     lockId,
     name,
@@ -490,14 +541,14 @@ export async function suggestName(
     source: identity.source ?? 'anonymous',
     visitorHash: identity.visitorHash,
   })
-  return getLock(lockId, { includeHidden: true })
+  return getLock(lockId, { includeHidden })
 }
 
 export async function voteName(
   nameId: string,
   value: number,
   visitorHash: string,
-): Promise<RemoteLockRecord> {
+): Promise<NameVoteResult> {
   if (value !== 1 && value !== -1) throw new ApiError(400, 'Vote must be 1 or -1')
 
   const nameResult = await query<{ lock_id: string }>(
@@ -506,6 +557,7 @@ export async function voteName(
   )
   const lockId = nameResult.rows[0]?.lock_id
   if (!lockId) throw new ApiError(404, 'Name not found')
+  await getLock(lockId)
 
   const voteResult = await query<{ id: string }>(
     `
@@ -533,7 +585,14 @@ export async function voteName(
     [nameId],
   )
 
-  return getLock(lockId, { includeHidden: true })
+  try {
+    return { lock: await getLock(lockId) }
+  } catch (error) {
+    if (error instanceof ApiError && error.statusCode === 404) {
+      return { hidden: true }
+    }
+    throw error
+  }
 }
 
 export async function listReports(): Promise<ReportRow[]> {

@@ -2,8 +2,14 @@ import type { ChestRecord, LockMatchRecord, RemoteLockRecord } from '../shared/l
 import { parsePins } from '../shared/lockValidation'
 
 export type SubmitLockResult = {
-  lock: RemoteLockRecord
+  lock?: RemoteLockRecord
   duplicate: boolean
+  hidden?: boolean
+}
+
+export type VoteRemoteNameResult = {
+  lock?: RemoteLockRecord
+  hidden?: boolean
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -57,14 +63,13 @@ export async function suggestRemoteName(lockId: string, name: string): Promise<R
   return body.lock
 }
 
-export async function voteRemoteName(nameId: string, value: 1 | -1): Promise<RemoteLockRecord> {
+export async function voteRemoteName(nameId: string, value: 1 | -1): Promise<VoteRemoteNameResult> {
   const response = await fetch(`/api/names/${encodeURIComponent(nameId)}/vote`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value }),
   })
-  const body = await readJson<{ lock: RemoteLockRecord }>(response)
-  return body.lock
+  return readJson<VoteRemoteNameResult>(response)
 }
 
 export function pinsFromChest(chest: ChestRecord): number[] {

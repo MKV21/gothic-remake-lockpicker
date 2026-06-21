@@ -24,8 +24,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     const identity = getVisitorIdentity(req, res)
     await enforceRateLimit({ action: 'vote-name', ...identity, limit: 200, windowHours: 24 })
     const body = await readJsonBody<{ value?: number }>(req)
-    const lock = await voteName(nameId, Number(body.value), identity.visitorHash)
-    sendJson(res, 200, { lock })
+    sendJson(res, 200, await voteName(nameId, Number(body.value), identity.visitorHash))
   } catch (error) {
     handleApiError(res, error)
   }
