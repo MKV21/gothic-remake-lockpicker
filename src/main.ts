@@ -14,7 +14,7 @@ import { renderSolution, solutionViewHint, type SolutionView } from './game/solu
 import { clampGateCount, createGameState, resetGameState } from './game/types'
 import { getLanguage, languageLabel, setLanguage, t, type Language } from './i18n'
 
-const APP_VERSION = '0.3.2'
+const APP_VERSION = '0.3.3'
 const state = createGameState()
 let cachedSolutionMoves: SolveMove[] | undefined
 let cachedSolutionResult: ReturnType<typeof solveLock> | undefined

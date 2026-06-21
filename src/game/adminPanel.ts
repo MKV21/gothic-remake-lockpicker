@@ -93,6 +93,12 @@ function renderEditor(container: HTMLElement, lock: RemoteLockRecord | undefined
       JSON.stringify(lockToPayload(lock), null, 2),
     )}</textarea>
     <div class="admin-editor-actions">
+      <button
+        type="button"
+        id="admin-approve-lock"
+        class="chest-btn chest-btn--approve"
+        ${lock.reviewStatus === 'approved' ? 'disabled' : ''}
+      >${lock.reviewStatus === 'approved' ? t('approved') : t('approve')}</button>
       <button type="button" id="admin-save-lock" class="chest-btn">${t('save')}</button>
       <button type="button" id="admin-delete-lock" class="chest-btn chest-btn--danger">${t('delete')}</button>
     </div>
@@ -219,6 +225,28 @@ export function mountAdminPanel(container: HTMLElement): void {
 
   container.addEventListener('click', async (event) => {
     const target = event.target as HTMLElement
+
+    if (target.id === 'admin-approve-lock') {
+      if (!selectedLock) return
+      try {
+        const body = await adminRequest<{ lock: RemoteLockRecord }>(
+          `/api/admin/locks/${encodeURIComponent(selectedLock.id)}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({
+              ...lockToPayload(selectedLock),
+              reviewStatus: 'approved',
+            }),
+          },
+        )
+        selectedLock = body.lock
+        await loadLocks()
+        renderEditor(container, selectedLock)
+        setStatus(container, `${t('approved')}: "${selectedLock.displayName}"`)
+      } catch (error) {
+        setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
+      }
+    }
 
     if (target.id === 'admin-save-lock') {
       if (!selectedLock) return

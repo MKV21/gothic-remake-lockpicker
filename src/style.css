@@ -913,6 +913,23 @@ ul {
   border-color: var(--accent);
 }
 
+.chest-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.chest-btn:disabled:hover {
+  border-color: var(--border);
+}
+
+.chest-btn--approve {
+  color: #a5cf82;
+}
+
+.chest-btn--approve:hover:not(:disabled) {
+  border-color: #7ea95e;
+}
+
 .chest-btn--danger {
   color: #d89090;
 }

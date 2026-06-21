@@ -21,6 +21,9 @@ and keyboard/controller output profiles.
 This is the running change list for this fork. Add new user-visible fork
 changes here as they land.
 
+- `0.3.3`
+  - Added an Admin UI approve button so pending locks can be approved without
+    editing JSON manually.
 - `0.3.2`
   - Updated the in-app fork attribution link to the public fork repository.
 - `0.3.1`
