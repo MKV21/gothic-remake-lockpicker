@@ -1313,7 +1313,7 @@ ul {
 
 .admin-lock-table {
   width: 100%;
-  min-width: 58rem;
+  min-width: 68rem;
   border-collapse: collapse;
   font-size: 0.75rem;
 }
@@ -1337,26 +1337,68 @@ ul {
   text-transform: uppercase;
 }
 
+.admin-lock-row {
+  cursor: pointer;
+}
+
+.admin-lock-row:hover td,
+.admin-lock-row:focus-visible td {
+  background: rgba(139, 115, 85, 0.1);
+}
+
+.admin-lock-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .admin-lock-row--selected td {
   background: rgba(139, 115, 85, 0.16);
 }
 
-.admin-table-select {
+.admin-table-name {
+  display: inline-block;
   max-width: 16rem;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  text-align: left;
   overflow-wrap: anywhere;
+}
+
+.admin-hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.admin-table-approve {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  padding: 0;
+  border: 1px solid #5a7a45;
+  border-radius: 999px;
+  background: #202818;
+  color: #a5cf82;
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1;
   cursor: pointer;
 }
 
-.admin-table-select:hover {
-  color: #fff;
-  text-decoration: underline;
-  text-decoration-color: var(--accent);
+.admin-table-approve:hover:not(:disabled) {
+  border-color: #7ea95e;
+  color: #c9e8af;
+}
+
+.admin-table-approve:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.admin-table-approve:disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
 }
 
 .admin-panel--page .admin-editor-pane {

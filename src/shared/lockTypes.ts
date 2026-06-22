@@ -43,6 +43,15 @@ export type RemoteLockRecord = {
   updatedAt: string
 }
 
+export type AdminLockRecord = RemoteLockRecord & {
+  admin: {
+    firstReportVisitorHash: string | null
+    firstReportIpHash: string | null
+    firstReportSource: string | null
+    firstReportCreatedAt: string | null
+  }
+}
+
 export type LockMatchRecord = {
   id: string
   gateCount: number

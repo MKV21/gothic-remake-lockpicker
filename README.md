@@ -21,6 +21,10 @@ and keyboard/controller output profiles.
 This is the running change list for this fork. Add new user-visible fork
 changes here as they land.
 
+- `0.4.1`
+  - Added Admin table identity hints using first-report IP and visitor hashes.
+  - Made Admin table rows clickable, added inline approve buttons, and changed
+    the Admin status line to show entry counts.
 - `0.4.0`
   - Added `/admin` as a dedicated full-width Admin page with table view,
     filters, sorting, and a larger editor panel.

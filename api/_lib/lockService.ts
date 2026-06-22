@@ -1,4 +1,13 @@
-import type { ChestRecord, LinkType, LockMatchRecord, LockNameRecord, RemoteLockRecord, ReviewStatus, SolveMove } from '../../src/shared/lockTypes.js'
+import type {
+  AdminLockRecord,
+  ChestRecord,
+  LinkType,
+  LockMatchRecord,
+  LockNameRecord,
+  RemoteLockRecord,
+  ReviewStatus,
+  SolveMove,
+} from '../../src/shared/lockTypes.js'
 import {
   CARD_COUNT,
   countSetLinks,
@@ -28,6 +37,13 @@ type LockRow = {
   created_at: string
   updated_at: string
   names: unknown
+}
+
+type AdminLockRow = LockRow & {
+  first_report_visitor_hash: string | null
+  first_report_ip_hash: string | null
+  first_report_source: string | null
+  first_report_created_at: string | null
 }
 
 type ReportRow = {
@@ -112,6 +128,18 @@ function rowToLock(row: LockRow): RemoteLockRecord {
     displayName: '',
   }
   return { ...lock, displayName: displayNameFor(lock) }
+}
+
+function rowToAdminLock(row: AdminLockRow): AdminLockRecord {
+  return {
+    ...rowToLock(row),
+    admin: {
+      firstReportVisitorHash: row.first_report_visitor_hash,
+      firstReportIpHash: row.first_report_ip_hash,
+      firstReportSource: row.first_report_source,
+      firstReportCreatedAt: row.first_report_created_at,
+    },
+  }
 }
 
 function toPublicLock(lock: RemoteLockRecord): RemoteLockRecord {
@@ -650,11 +678,15 @@ export async function setNameStatus(
   return getLock(lockId, { includeHidden: true })
 }
 
-export async function listAdminLocks(): Promise<RemoteLockRecord[]> {
-  const result = await query<LockRow>(
+export async function listAdminLocks(): Promise<AdminLockRecord[]> {
+  const result = await query<AdminLockRow>(
     `
       SELECT
         l.*,
+        first_report.visitor_hash AS first_report_visitor_hash,
+        first_report.ip_hash AS first_report_ip_hash,
+        first_report.source AS first_report_source,
+        first_report.created_at AS first_report_created_at,
         COALESCE(
           jsonb_agg(
             jsonb_build_object(
@@ -673,12 +705,23 @@ export async function listAdminLocks(): Promise<RemoteLockRecord[]> {
         ) AS names
       FROM locks l
       LEFT JOIN lock_names n ON n.lock_id = l.id
-      GROUP BY l.id
+      LEFT JOIN LATERAL (
+        SELECT visitor_hash, ip_hash, source, created_at
+        FROM lock_reports r
+        WHERE r.lock_id = l.id
+        ORDER BY r.created_at ASC
+        LIMIT 1
+      ) first_report ON true
+      GROUP BY l.id,
+        first_report.visitor_hash,
+        first_report.ip_hash,
+        first_report.source,
+        first_report.created_at
       ORDER BY l.updated_at DESC, l.created_at DESC
     `,
   )
 
-  return result.rows.map(rowToLock)
+  return result.rows.map(rowToAdminLock)
 }
 
 export async function updateAdminLock(

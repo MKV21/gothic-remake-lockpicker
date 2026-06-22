@@ -1,4 +1,4 @@
-import type { ChestRecord, RemoteLockRecord, ReviewStatus } from '../shared/lockTypes'
+import type { AdminLockRecord, ChestRecord, RemoteLockRecord, ReviewStatus } from '../shared/lockTypes'
 import { getLanguage, t } from '../i18n'
 import { countSetLinks } from '../shared/lockValidation'
 
@@ -97,6 +97,34 @@ function formatTimestamp(value: string): string {
   }).format(date)
 }
 
+function shortHash(value: string | null): string {
+  return value ? value.slice(0, 12) : '-'
+}
+
+function isAdminLockRecord(lock: RemoteLockRecord): lock is AdminLockRecord {
+  return 'admin' in lock
+}
+
+function adminIdentityLabel(lock: AdminLockRecord): string {
+  if (lock.admin.firstReportIpHash) return `IP ${shortHash(lock.admin.firstReportIpHash)}`
+  if (lock.admin.firstReportVisitorHash) return `Visitor ${shortHash(lock.admin.firstReportVisitorHash)}`
+  return '-'
+}
+
+function adminIdentityTitle(lock: AdminLockRecord): string {
+  return [
+    `${t('ipHash')}: ${lock.admin.firstReportIpHash ?? '-'}`,
+    `${t('visitorHash')}: ${lock.admin.firstReportVisitorHash ?? '-'}`,
+    `${t('source')}: ${lock.admin.firstReportSource ?? '-'}`,
+    `${t('created')}: ${lock.admin.firstReportCreatedAt ? formatTimestamp(lock.admin.firstReportCreatedAt) : '-'}`,
+  ].join('\n')
+}
+
+function entryCountLabel(visibleCount: number, totalCount: number): string {
+  if (visibleCount === totalCount) return `${t('entryCount')}: ${totalCount}`
+  return `${t('entryCount')}: ${visibleCount} / ${totalCount}`
+}
+
 function lockSummary(lock: RemoteLockRecord): string {
   const score = maxNameScore(lock)
   const scoreLabel = Number.isFinite(score) ? String(score) : t('noActiveNames')
@@ -104,7 +132,7 @@ function lockSummary(lock: RemoteLockRecord): string {
   return `${lock.gateCount} ${t('gates')} · ${setLinkCount(lock)} ${t('linksSet')} · ${statusLabel(lock.reviewStatus)} · ${t('score')} ${scoreLabel}${hidden}`
 }
 
-function filterAndSortLocks(locks: RemoteLockRecord[], filters: AdminFilters): RemoteLockRecord[] {
+function filterAndSortLocks<T extends RemoteLockRecord>(locks: T[], filters: AdminFilters): T[] {
   const query = filters.query.trim().toLocaleLowerCase()
 
   return locks
@@ -159,6 +187,13 @@ function renderEditor(container: HTMLElement, lock: RemoteLockRecord | undefined
       <h3>${t('editChest')}</h3>
       <span>${escapeHtml(lock.id)}</span>
       <span>${setLinkCount(lock)} ${t('linksSet')}</span>
+      ${
+        isAdminLockRecord(lock)
+          ? `<span>${t('ipHash')}: ${escapeHtml(lock.admin.firstReportIpHash ?? '-')}</span>
+             <span>${t('visitorHash')}: ${escapeHtml(lock.admin.firstReportVisitorHash ?? '-')}</span>
+             <span>${t('source')}: ${escapeHtml(lock.admin.firstReportSource ?? '-')}</span>`
+          : ''
+      }
       <span>${t('created')}: ${escapeHtml(formatTimestamp(lock.createdAt))}</span>
       <span>${t('updated')}: ${escapeHtml(formatTimestamp(lock.updatedAt))}</span>
     </div>
@@ -180,8 +215,9 @@ function renderEditor(container: HTMLElement, lock: RemoteLockRecord | undefined
 
 function renderLockList(
   container: HTMLElement,
-  locks: RemoteLockRecord[],
-  selectLock: (lock: RemoteLockRecord) => void,
+  locks: AdminLockRecord[],
+  selectLock: (lock: AdminLockRecord) => void,
+  approveLock: (lock: AdminLockRecord) => void,
   selectedLockId: string | undefined,
   layout: 'sidebar' | 'page',
 ): void {
@@ -198,8 +234,10 @@ function renderLockList(
       <table class="admin-lock-table">
         <thead>
           <tr>
+            <th>${t('actions')}</th>
             <th>${t('name')}</th>
             <th>${t('reviewStatus')}</th>
+            <th>${t('ipHash')}</th>
             <th>${t('gates')}</th>
             <th>${t('pins')}</th>
             <th>${t('linksSet')}</th>
@@ -213,13 +251,31 @@ function renderLockList(
             .map((lock) => {
               const score = maxNameScore(lock)
               return `
-                <tr class="${lock.id === selectedLockId ? 'admin-lock-row admin-lock-row--selected' : 'admin-lock-row'}">
+                <tr
+                  class="${lock.id === selectedLockId ? 'admin-lock-row admin-lock-row--selected' : 'admin-lock-row'}"
+                  data-id="${escapeHtml(lock.id)}"
+                  tabindex="0"
+                  aria-label="${escapeHtml(lock.displayName)}"
+                >
                   <td>
-                    <button type="button" class="admin-table-select" data-id="${escapeHtml(lock.id)}">
-                      ${escapeHtml(lock.displayName)}
-                    </button>
+                    <button
+                      type="button"
+                      class="admin-table-approve"
+                      data-id="${escapeHtml(lock.id)}"
+                      title="${escapeHtml(t('approve'))}"
+                      aria-label="${escapeHtml(`${t('approve')}: ${lock.displayName}`)}"
+                      ${lock.reviewStatus === 'approved' ? 'disabled' : ''}
+                    >&#10003;</button>
+                  </td>
+                  <td>
+                    <span class="admin-table-name">${escapeHtml(lock.displayName)}</span>
                   </td>
                   <td>${escapeHtml(statusLabel(lock.reviewStatus))}</td>
+                  <td>
+                    <span class="admin-hash" title="${escapeHtml(adminIdentityTitle(lock))}">
+                      ${escapeHtml(adminIdentityLabel(lock))}
+                    </span>
+                  </td>
                   <td>${lock.gateCount}</td>
                   <td>${escapeHtml(lock.initialPins.join(', '))}</td>
                   <td>${setLinkCount(lock)}</td>
@@ -233,10 +289,25 @@ function renderLockList(
         </tbody>
       </table>
     `
-    list.querySelectorAll<HTMLButtonElement>('.admin-table-select').forEach((button) => {
+    list.querySelectorAll<HTMLButtonElement>('.admin-table-approve').forEach((button) => {
       button.addEventListener('click', () => {
         const lock = locks.find((item) => item.id === button.dataset.id)
+        if (lock) approveLock(lock)
+      })
+    })
+    list.querySelectorAll<HTMLTableRowElement>('.admin-lock-row').forEach((row) => {
+      const selectRow = (): void => {
+        const lock = locks.find((item) => item.id === row.dataset.id)
         if (lock) selectLock(lock)
+      }
+      row.addEventListener('click', (event) => {
+        if ((event.target as HTMLElement).closest('button')) return
+        selectRow()
+      })
+      row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        selectRow()
       })
     })
     return
@@ -267,8 +338,8 @@ function renderLockList(
 
 export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptions = {}): void {
   const layout = options.layout ?? 'sidebar'
-  let locks: RemoteLockRecord[] = []
-  let selectedLock: RemoteLockRecord | undefined
+  let locks: AdminLockRecord[] = []
+  let selectedLock: AdminLockRecord | undefined
   let filters: AdminFilters = {
     query: '',
     status: 'all',
@@ -276,24 +347,43 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     sort: 'updated-desc',
   }
 
-  const renderLocks = (): RemoteLockRecord[] => {
+  async function approveLock(lock: AdminLockRecord): Promise<void> {
+    try {
+      await adminRequest<{ lock: RemoteLockRecord }>(
+        `/api/admin/locks/${encodeURIComponent(lock.id)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            reviewStatus: 'approved',
+          }),
+        },
+      )
+      await loadLocks(lock.id)
+      setStatus(container, `${t('approved')}: "${lock.displayName}"`)
+    } catch (error) {
+      setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
+    }
+  }
+
+  const renderLocks = (): AdminLockRecord[] => {
     const visibleLocks = layout === 'page' ? filterAndSortLocks(locks, filters) : locks
     renderLockList(container, visibleLocks, (lock) => {
       selectedLock = lock
       renderLocks()
       renderEditor(container, lock)
-    }, selectedLock?.id, layout)
+    }, approveLock, selectedLock?.id, layout)
     return visibleLocks
   }
 
   const renderFilteredLocks = (): void => {
     const visibleLocks = renderLocks()
     if (layout !== 'page') return
-    if (selectedLock && visibleLocks.some((lock) => lock.id === selectedLock?.id)) return
-
-    selectedLock = visibleLocks[0]
-    renderLocks()
-    renderEditor(container, selectedLock)
+    if (!selectedLock || !visibleLocks.some((lock) => lock.id === selectedLock?.id)) {
+      selectedLock = visibleLocks[0]
+      renderLocks()
+      renderEditor(container, selectedLock)
+    }
+    setStatus(container, entryCountLabel(visibleLocks.length, locks.length))
   }
 
   container.innerHTML = `
@@ -353,16 +443,14 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     </section>
   `
 
-  const loadLocks = async (): Promise<void> => {
+  const loadLocks = async (preferredLockId = selectedLock?.id): Promise<void> => {
     try {
-      const body = await adminRequest<{ locks: RemoteLockRecord[] }>('/api/admin/locks')
+      const body = await adminRequest<{ locks: AdminLockRecord[] }>('/api/admin/locks')
       if (!Array.isArray(body.locks)) throw new Error(t('failedLoad'))
-      const selectedLockId = selectedLock?.id
       locks = body.locks
-      setStatus(container, `${t('loaded')}: ${locks.length}`)
       const visibleLocks = layout === 'page' ? filterAndSortLocks(locks, filters) : locks
-      const previousSelection = selectedLockId
-        ? locks.find((lock) => lock.id === selectedLockId)
+      const previousSelection = preferredLockId
+        ? locks.find((lock) => lock.id === preferredLockId)
         : undefined
       if (layout === 'page') {
         selectedLock =
@@ -374,6 +462,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
       }
       renderLocks()
       renderEditor(container, selectedLock)
+      setStatus(container, entryCountLabel(visibleLocks.length, locks.length))
     } catch (error) {
       const message = error instanceof Error ? error.message : t('failedLoad')
       setStatus(
@@ -445,23 +534,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
 
     if (target.id === 'admin-approve-lock') {
       if (!selectedLock) return
-      try {
-        const body = await adminRequest<{ lock: RemoteLockRecord }>(
-          `/api/admin/locks/${encodeURIComponent(selectedLock.id)}`,
-          {
-            method: 'PATCH',
-            body: JSON.stringify({
-              reviewStatus: 'approved',
-            }),
-          },
-        )
-        selectedLock = body.lock
-        await loadLocks()
-        renderEditor(container, selectedLock)
-        setStatus(container, `${t('approved')}: "${selectedLock.displayName}"`)
-      } catch (error) {
-        setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
-      }
+      await approveLock(selectedLock)
     }
 
     if (target.id === 'admin-save-lock') {
@@ -476,10 +549,9 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
             body: JSON.stringify(payload),
           },
         )
-        selectedLock = body.lock
-        await loadLocks()
+        await loadLocks(body.lock.id)
         renderEditor(container, selectedLock)
-        setStatus(container, `${t('lockSaved')}: "${selectedLock.displayName}"`)
+        setStatus(container, `${t('lockSaved')}: "${body.lock.displayName}"`)
       } catch (error) {
         setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
       }

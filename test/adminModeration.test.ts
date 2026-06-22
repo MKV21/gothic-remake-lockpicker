@@ -69,6 +69,13 @@ test('admin approve patch is status-only', () => {
   assert.equal(isStatusOnlyAdminLockPatch(null), false)
 })
 
+test('admin lock list includes first report identity metadata', async () => {
+  const service = await readFile(path.join(rootDir, 'api/_lib/lockService.ts'), 'utf8')
+  assert.match(service, /first_report\.ip_hash AS first_report_ip_hash/)
+  assert.match(service, /first_report\.visitor_hash AS first_report_visitor_hash/)
+  assert.match(service, /LEFT JOIN LATERAL\s*\(\s*SELECT visitor_hash, ip_hash, source, created_at/s)
+})
+
 test('database matching waits for at least three pins', async () => {
   assert.deepEqual(await findMatches('6', '1,2'), [])
 })
