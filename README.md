@@ -18,70 +18,24 @@ and keyboard/controller output profiles.
 
 ## Fork Changes Compared To Upstream
 
-This is the running change list for this fork. Add new user-visible fork
-changes here as they land.
+Short, user-visible fork changes:
 
-- `0.4.3`
-  - Updated German UI copy to use proper umlauts and ß.
-- `0.4.2`
-  - Changed the Admin table approval icon colors: green means already approved,
-    yellow means approval is still needed.
-- `0.4.1`
-  - Added Admin table identity hints using first-report IP and visitor hashes.
-  - Made Admin table rows clickable, added inline approve buttons, and changed
-    the Admin status line to show entry counts.
-- `0.4.0`
-  - Added `/admin` as a dedicated full-width Admin page with table view,
-    filters, sorting, and a larger editor panel.
-  - Redirected legacy `?admin=1` URLs to `/admin`.
-- `0.3.10`
-  - Shortened the Admin link-count label to `X Links`.
-- `0.3.9`
-  - Removed the visible Admin link from the public solver header.
-  - Added a plan for moving Admin moderation into a dedicated page.
-- `0.3.8`
-  - Added Admin metadata for link count, created timestamp, and updated timestamp.
-  - Skipped automatic database submissions for solved locks without configured
-    links.
-  - Added a daily private-bucket database backup workflow and setup docs.
-- `0.3.7`
-  - Delayed database matching until at least the first three start pins are set.
-- `0.3.6`
-  - Hardened production security defaults for database TLS verification,
-    expiring admin sessions, and visitor hash salt configuration.
-- `0.3.5`
-  - Made Admin approve status-only and refreshed selected editor data after
-    reloading locks.
-- `0.3.4`
-  - Fixed Admin UI layout so the admin panel no longer overlaps the solution
-    panel.
-- `0.3.3`
-  - Added an Admin UI approve button so pending locks can be approved without
-    editing JSON manually.
-- `0.3.2`
-  - Updated the in-app fork attribution link to the public fork repository.
-- `0.3.1`
-  - Removed browser-local chest draft saving from the UI to avoid confusion with
-    shared database entries.
-  - Reset now clears the current chest name, so a fresh lock cannot accidentally
-    reuse the previous name.
-  - Removed the obsolete Vite local/file chest storage backend and
-    `VITE_STORAGE_BACKEND` setting.
-  - Updated fork documentation with live deployment, upstream attribution, and
-    this fork change list.
-- `0.3.0`
-  - Added Vercel API routes backed by Postgres.
-  - Added shared lock submission and duplicate/report handling.
-  - Added progressive database matching by gate count and start pins.
-  - Added hidden chest names with explicit reveal controls to reduce spoilers.
-  - Added name suggestions, one-vote-per-visitor voting, and public hiding for
-    heavily downvoted chests.
-  - Added admin UI for viewing, editing, hiding, and deleting database locks.
-  - Added German/English UI with automatic language detection and manual picker.
-  - Added output profiles for Moves, Keyboard, Xbox, PS5, and Switch.
-  - Added visible app version and public attribution links.
-  - Added seed import tooling for bundled Xetoxyc chest data and optional
-    religiosa1 lock data.
+- `0.4.4`: Admin table delete action, compact table layout, shorter changelog.
+- `0.4.3`: German UI copy uses proper umlauts and ß.
+- `0.4.2`: Clearer Admin approval icon colors.
+- `0.4.1`: Admin table identity hints, row click, inline approve, entry count.
+- `0.4.0`: Dedicated `/admin` page.
+- `0.3.10`: Shorter Admin link-count label.
+- `0.3.9`: Public solver no longer exposes an Admin link.
+- `0.3.8`: Admin timestamps/link counts, safer autosubmit, backup workflow.
+- `0.3.7`: Database matching starts after three start pins.
+- `0.3.6`: Production security hardening.
+- `0.3.5`: Safer Admin approval updates.
+- `0.3.4`: Admin layout overlap fix.
+- `0.3.3`: Admin approve button.
+- `0.3.2`: Public fork attribution link.
+- `0.3.1`: Removed local chest draft UI and cleaned up fork docs.
+- `0.3.0`: Shared database, matching, moderation, i18n, controller outputs, seed tooling.
 
 ## Attribution And License
 

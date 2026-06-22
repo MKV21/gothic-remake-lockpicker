@@ -218,6 +218,7 @@ function renderLockList(
   locks: AdminLockRecord[],
   selectLock: (lock: AdminLockRecord) => void,
   approveLock: (lock: AdminLockRecord) => void,
+  deleteLock: (lock: AdminLockRecord) => void,
   selectedLockId: string | undefined,
   layout: 'sidebar' | 'page',
 ): void {
@@ -232,6 +233,18 @@ function renderLockList(
   if (layout === 'page') {
     list.innerHTML = `
       <table class="admin-lock-table">
+        <colgroup>
+          <col class="admin-col-actions" />
+          <col class="admin-col-name" />
+          <col class="admin-col-status" />
+          <col class="admin-col-ip" />
+          <col class="admin-col-gates" />
+          <col class="admin-col-pins" />
+          <col class="admin-col-links" />
+          <col class="admin-col-score" />
+          <col class="admin-col-created" />
+          <col class="admin-col-updated" />
+        </colgroup>
         <thead>
           <tr>
             <th>${t('actions')}</th>
@@ -259,14 +272,23 @@ function renderLockList(
                   aria-label="${escapeHtml(lock.displayName)}"
                 >
                   <td>
-                    <button
-                      type="button"
-                      class="admin-table-approve ${isApproved ? 'admin-table-approve--approved' : 'admin-table-approve--pending'}"
-                      data-id="${escapeHtml(lock.id)}"
-                      title="${escapeHtml(isApproved ? t('approved') : t('approve'))}"
-                      aria-label="${escapeHtml(`${isApproved ? t('approved') : t('approve')}: ${lock.displayName}`)}"
-                      ${isApproved ? 'disabled' : ''}
-                    >&#10003;</button>
+                    <div class="admin-table-actions">
+                      <button
+                        type="button"
+                        class="admin-table-action admin-table-approve ${isApproved ? 'admin-table-approve--approved' : 'admin-table-approve--pending'}"
+                        data-id="${escapeHtml(lock.id)}"
+                        title="${escapeHtml(isApproved ? t('approved') : t('approve'))}"
+                        aria-label="${escapeHtml(`${isApproved ? t('approved') : t('approve')}: ${lock.displayName}`)}"
+                        ${isApproved ? 'disabled' : ''}
+                      >&#10003;</button>
+                      <button
+                        type="button"
+                        class="admin-table-action admin-table-delete"
+                        data-id="${escapeHtml(lock.id)}"
+                        title="${escapeHtml(t('delete'))}"
+                        aria-label="${escapeHtml(`${t('delete')}: ${lock.displayName}`)}"
+                      >&#215;</button>
+                    </div>
                   </td>
                   <td>
                     <span class="admin-table-name">${escapeHtml(lock.displayName)}</span>
@@ -294,6 +316,12 @@ function renderLockList(
       button.addEventListener('click', () => {
         const lock = locks.find((item) => item.id === button.dataset.id)
         if (lock) approveLock(lock)
+      })
+    })
+    list.querySelectorAll<HTMLButtonElement>('.admin-table-delete').forEach((button) => {
+      button.addEventListener('click', () => {
+        const lock = locks.find((item) => item.id === button.dataset.id)
+        if (lock) deleteLock(lock)
       })
     })
     list.querySelectorAll<HTMLTableRowElement>('.admin-lock-row').forEach((row) => {
@@ -366,13 +394,33 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     }
   }
 
+  async function deleteLock(lock: AdminLockRecord): Promise<void> {
+    const confirmed = window.confirm(`${t('delete')} "${lock.displayName}"?`)
+    if (!confirmed) return
+
+    try {
+      await adminRequest<{ ok: true }>(
+        `/api/admin/locks/${encodeURIComponent(lock.id)}`,
+        { method: 'DELETE' },
+      )
+      if (selectedLock?.id === lock.id) {
+        selectedLock = undefined
+        renderEditor(container, undefined)
+      }
+      await loadLocks()
+      setStatus(container, t('lockDeleted'))
+    } catch (error) {
+      setStatus(container, error instanceof Error ? error.message : t('failedDelete'), true)
+    }
+  }
+
   const renderLocks = (): AdminLockRecord[] => {
     const visibleLocks = layout === 'page' ? filterAndSortLocks(locks, filters) : locks
     renderLockList(container, visibleLocks, (lock) => {
       selectedLock = lock
       renderLocks()
       renderEditor(container, lock)
-    }, approveLock, selectedLock?.id, layout)
+    }, approveLock, deleteLock, selectedLock?.id, layout)
     return visibleLocks
   }
 
@@ -560,21 +608,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
 
     if (target.id === 'admin-delete-lock') {
       if (!selectedLock) return
-      const confirmed = window.confirm(`${t('delete')} "${selectedLock.displayName}"?`)
-      if (!confirmed) return
-
-      try {
-        await adminRequest<{ ok: true }>(
-          `/api/admin/locks/${encodeURIComponent(selectedLock.id)}`,
-          { method: 'DELETE' },
-        )
-        selectedLock = undefined
-        renderEditor(container, undefined)
-        await loadLocks()
-        setStatus(container, t('lockDeleted'))
-      } catch (error) {
-        setStatus(container, error instanceof Error ? error.message : t('failedDelete'), true)
-      }
+      await deleteLock(selectedLock)
     }
   })
 
