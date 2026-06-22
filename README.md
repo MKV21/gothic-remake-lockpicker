@@ -21,6 +21,10 @@ and keyboard/controller output profiles.
 This is the running change list for this fork. Add new user-visible fork
 changes here as they land.
 
+- `0.4.0`
+  - Added `/admin` as a dedicated full-width Admin page with table view,
+    filters, sorting, and a larger editor panel.
+  - Redirected legacy `?admin=1` URLs to `/admin`.
 - `0.3.10`
   - Shortened the Admin link-count label to `X Links`.
 - `0.3.9`

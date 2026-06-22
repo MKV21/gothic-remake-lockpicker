@@ -6,6 +6,17 @@ type AdminLockPayload = ChestRecord & {
   reviewStatus: ReviewStatus
 }
 
+type AdminPanelOptions = {
+  layout?: 'sidebar' | 'page'
+}
+
+type AdminFilters = {
+  query: string
+  status: 'all' | ReviewStatus
+  links: 'all' | 'with-links' | 'without-links'
+  sort: 'updated-desc' | 'created-desc' | 'links-desc' | 'score-asc'
+}
+
 function escapeHtml(text: string): string {
   return text
     .replaceAll('&', '&amp;')
@@ -45,6 +56,17 @@ async function clearAdminSession(): Promise<void> {
   await adminRequest<{ ok: true }>('/api/admin/session', { method: 'DELETE' })
 }
 
+function statusLabel(status: ReviewStatus): string {
+  switch (status) {
+    case 'approved':
+      return t('approved')
+    case 'pending':
+      return t('pending')
+    case 'rejected':
+      return t('rejected')
+  }
+}
+
 function lockToPayload(lock: RemoteLockRecord): AdminLockPayload {
   return {
     name: lock.displayName,
@@ -55,6 +77,10 @@ function lockToPayload(lock: RemoteLockRecord): AdminLockPayload {
     links: lock.links,
     solutionMoves: lock.solutionMoves,
   }
+}
+
+function setLinkCount(lock: RemoteLockRecord): number {
+  return countSetLinks(lock.links, lock.gateCount)
 }
 
 function maxNameScore(lock: RemoteLockRecord): number {
@@ -75,8 +101,41 @@ function lockSummary(lock: RemoteLockRecord): string {
   const score = maxNameScore(lock)
   const scoreLabel = Number.isFinite(score) ? String(score) : t('noActiveNames')
   const hidden = Number.isFinite(score) && score <= -5 ? ` · ${t('hiddenPublic')}` : ''
-  const linkCount = countSetLinks(lock.links, lock.gateCount)
-  return `${lock.gateCount} ${t('gates')} · ${linkCount} ${t('linksSet')} · ${lock.reviewStatus} · ${t('score')} ${scoreLabel}${hidden}`
+  return `${lock.gateCount} ${t('gates')} · ${setLinkCount(lock)} ${t('linksSet')} · ${statusLabel(lock.reviewStatus)} · ${t('score')} ${scoreLabel}${hidden}`
+}
+
+function filterAndSortLocks(locks: RemoteLockRecord[], filters: AdminFilters): RemoteLockRecord[] {
+  const query = filters.query.trim().toLocaleLowerCase()
+
+  return locks
+    .filter((lock) => {
+      if (filters.status !== 'all' && lock.reviewStatus !== filters.status) return false
+
+      const linkCount = setLinkCount(lock)
+      if (filters.links === 'with-links' && linkCount === 0) return false
+      if (filters.links === 'without-links' && linkCount > 0) return false
+
+      if (!query) return true
+      return [
+        lock.displayName,
+        lock.fingerprint,
+        lock.initialPins.join(','),
+        ...lock.names.map((name) => name.name),
+      ].some((value) => value.toLocaleLowerCase().includes(query))
+    })
+    .sort((a, b) => {
+      switch (filters.sort) {
+        case 'created-desc':
+          return Date.parse(b.createdAt) - Date.parse(a.createdAt)
+        case 'links-desc':
+          return setLinkCount(b) - setLinkCount(a) || Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
+        case 'score-asc':
+          return maxNameScore(a) - maxNameScore(b) || Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
+        case 'updated-desc':
+        default:
+          return Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
+      }
+    })
 }
 
 function setStatus(container: HTMLElement, message: string, isError = false): void {
@@ -99,7 +158,7 @@ function renderEditor(container: HTMLElement, lock: RemoteLockRecord | undefined
     <div class="admin-editor-header">
       <h3>${t('editChest')}</h3>
       <span>${escapeHtml(lock.id)}</span>
-      <span>${countSetLinks(lock.links, lock.gateCount)} ${t('linksSet')}</span>
+      <span>${setLinkCount(lock)} ${t('linksSet')}</span>
       <span>${t('created')}: ${escapeHtml(formatTimestamp(lock.createdAt))}</span>
       <span>${t('updated')}: ${escapeHtml(formatTimestamp(lock.updatedAt))}</span>
     </div>
@@ -123,12 +182,63 @@ function renderLockList(
   container: HTMLElement,
   locks: RemoteLockRecord[],
   selectLock: (lock: RemoteLockRecord) => void,
+  selectedLockId: string | undefined,
+  layout: 'sidebar' | 'page',
 ): void {
-  const list = container.querySelector<HTMLUListElement>('#admin-lock-list')
+  const list = container.querySelector<HTMLElement>('#admin-lock-list')
   if (!list) return
 
   if (locks.length === 0) {
-    list.innerHTML = `<li class="chest-empty">${t('noDatabaseChests')}</li>`
+    list.innerHTML = `<p class="chest-empty">${t('noDatabaseChests')}</p>`
+    return
+  }
+
+  if (layout === 'page') {
+    list.innerHTML = `
+      <table class="admin-lock-table">
+        <thead>
+          <tr>
+            <th>${t('name')}</th>
+            <th>${t('reviewStatus')}</th>
+            <th>${t('gates')}</th>
+            <th>${t('pins')}</th>
+            <th>${t('linksSet')}</th>
+            <th>${t('score')}</th>
+            <th>${t('created')}</th>
+            <th>${t('updated')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${locks
+            .map((lock) => {
+              const score = maxNameScore(lock)
+              return `
+                <tr class="${lock.id === selectedLockId ? 'admin-lock-row admin-lock-row--selected' : 'admin-lock-row'}">
+                  <td>
+                    <button type="button" class="admin-table-select" data-id="${escapeHtml(lock.id)}">
+                      ${escapeHtml(lock.displayName)}
+                    </button>
+                  </td>
+                  <td>${escapeHtml(statusLabel(lock.reviewStatus))}</td>
+                  <td>${lock.gateCount}</td>
+                  <td>${escapeHtml(lock.initialPins.join(', '))}</td>
+                  <td>${setLinkCount(lock)}</td>
+                  <td>${Number.isFinite(score) ? score : '-'}</td>
+                  <td>${escapeHtml(formatTimestamp(lock.createdAt))}</td>
+                  <td>${escapeHtml(formatTimestamp(lock.updatedAt))}</td>
+                </tr>
+              `
+            })
+            .join('')}
+        </tbody>
+      </table>
+    `
+    list.querySelectorAll<HTMLButtonElement>('.admin-table-select').forEach((button) => {
+      button.addEventListener('click', () => {
+        const lock = locks.find((item) => item.id === button.dataset.id)
+        if (lock) selectLock(lock)
+      })
+    })
     return
   }
 
@@ -136,7 +246,7 @@ function renderLockList(
     .map(
       (lock) => `
         <li class="admin-lock-item">
-          <button type="button" class="admin-lock-select" data-id="${lock.id}">
+          <button type="button" class="admin-lock-select" data-id="${escapeHtml(lock.id)}">
             <strong>${escapeHtml(lock.displayName)}</strong>
             <span>${escapeHtml(lockSummary(lock))}</span>
             <span>${t('pins')} ${lock.initialPins.join(', ')}</span>
@@ -155,12 +265,39 @@ function renderLockList(
   })
 }
 
-export function mountAdminPanel(container: HTMLElement): void {
+export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptions = {}): void {
+  const layout = options.layout ?? 'sidebar'
   let locks: RemoteLockRecord[] = []
   let selectedLock: RemoteLockRecord | undefined
+  let filters: AdminFilters = {
+    query: '',
+    status: 'all',
+    links: 'all',
+    sort: 'updated-desc',
+  }
+
+  const renderLocks = (): RemoteLockRecord[] => {
+    const visibleLocks = layout === 'page' ? filterAndSortLocks(locks, filters) : locks
+    renderLockList(container, visibleLocks, (lock) => {
+      selectedLock = lock
+      renderLocks()
+      renderEditor(container, lock)
+    }, selectedLock?.id, layout)
+    return visibleLocks
+  }
+
+  const renderFilteredLocks = (): void => {
+    const visibleLocks = renderLocks()
+    if (layout !== 'page') return
+    if (selectedLock && visibleLocks.some((lock) => lock.id === selectedLock?.id)) return
+
+    selectedLock = visibleLocks[0]
+    renderLocks()
+    renderEditor(container, selectedLock)
+  }
 
   container.innerHTML = `
-    <section class="admin-panel">
+    <section class="admin-panel admin-panel--${layout}">
       <h2>${t('admin')}</h2>
       <p class="panel-hint">${t('adminHint')}</p>
       <form id="admin-login" class="admin-login" method="post" action="/api/admin/session" autocomplete="on">
@@ -173,24 +310,69 @@ export function mountAdminPanel(container: HTMLElement): void {
         <button type="button" id="admin-lock-session" class="chest-btn">${t('adminLock')}</button>
       </div>
       <p class="admin-status" aria-live="polite"></p>
-      <ul id="admin-lock-list" class="admin-lock-list"></ul>
-      <div id="admin-editor"></div>
+      ${
+        layout === 'page'
+          ? `<div class="admin-filter-bar">
+              <label>
+                <span>${t('search')}</span>
+                <input id="admin-filter-query" type="search" placeholder="${t('search')}" />
+              </label>
+              <label>
+                <span>${t('reviewStatus')}</span>
+                <select id="admin-filter-status">
+                  <option value="all">${t('all')}</option>
+                  <option value="pending">${t('pending')}</option>
+                  <option value="approved">${t('approved')}</option>
+                  <option value="rejected">${t('rejected')}</option>
+                </select>
+              </label>
+              <label>
+                <span>${t('linksSet')}</span>
+                <select id="admin-filter-links">
+                  <option value="all">${t('all')}</option>
+                  <option value="with-links">${t('withLinks')}</option>
+                  <option value="without-links">${t('withoutLinks')}</option>
+                </select>
+              </label>
+              <label>
+                <span>${t('sort')}</span>
+                <select id="admin-sort">
+                  <option value="updated-desc">${t('sortUpdated')}</option>
+                  <option value="created-desc">${t('sortCreated')}</option>
+                  <option value="links-desc">${t('sortLinks')}</option>
+                  <option value="score-asc">${t('sortScore')}</option>
+                </select>
+              </label>
+            </div>`
+          : ''
+      }
+      <div class="admin-workspace">
+        <div id="admin-lock-list" class="admin-lock-list"></div>
+        <div id="admin-editor" class="admin-editor-pane"></div>
+      </div>
     </section>
   `
 
   const loadLocks = async (): Promise<void> => {
     try {
       const body = await adminRequest<{ locks: RemoteLockRecord[] }>('/api/admin/locks')
+      if (!Array.isArray(body.locks)) throw new Error(t('failedLoad'))
       const selectedLockId = selectedLock?.id
       locks = body.locks
-      renderLockList(container, locks, (lock) => {
-        selectedLock = lock
-        renderEditor(container, lock)
-      })
       setStatus(container, `${t('loaded')}: ${locks.length}`)
-      selectedLock = selectedLockId
+      const visibleLocks = layout === 'page' ? filterAndSortLocks(locks, filters) : locks
+      const previousSelection = selectedLockId
         ? locks.find((lock) => lock.id === selectedLockId)
-        : locks[0]
+        : undefined
+      if (layout === 'page') {
+        selectedLock =
+          previousSelection && visibleLocks.some((lock) => lock.id === previousSelection.id)
+            ? previousSelection
+            : visibleLocks[0]
+      } else {
+        selectedLock = previousSelection ?? locks[0]
+      }
+      renderLocks()
       renderEditor(container, selectedLock)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('failedLoad')
@@ -200,6 +382,25 @@ export function mountAdminPanel(container: HTMLElement): void {
         true,
       )
     }
+  }
+
+  if (layout === 'page') {
+    container.querySelector<HTMLInputElement>('#admin-filter-query')?.addEventListener('input', (event) => {
+      filters = { ...filters, query: (event.target as HTMLInputElement).value }
+      renderFilteredLocks()
+    })
+    container.querySelector<HTMLSelectElement>('#admin-filter-status')?.addEventListener('change', (event) => {
+      filters = { ...filters, status: (event.target as HTMLSelectElement).value as AdminFilters['status'] }
+      renderFilteredLocks()
+    })
+    container.querySelector<HTMLSelectElement>('#admin-filter-links')?.addEventListener('change', (event) => {
+      filters = { ...filters, links: (event.target as HTMLSelectElement).value as AdminFilters['links'] }
+      renderFilteredLocks()
+    })
+    container.querySelector<HTMLSelectElement>('#admin-sort')?.addEventListener('change', (event) => {
+      filters = { ...filters, sort: (event.target as HTMLSelectElement).value as AdminFilters['sort'] }
+      renderFilteredLocks()
+    })
   }
 
   container.querySelector<HTMLFormElement>('#admin-login')?.addEventListener('submit', async (event) => {
@@ -234,7 +435,7 @@ export function mountAdminPanel(container: HTMLElement): void {
     selectedLock = undefined
     const input = container.querySelector<HTMLInputElement>('#admin-password')
     if (input) input.value = ''
-    renderLockList(container, [], () => undefined)
+    renderLocks()
     renderEditor(container, undefined)
     setStatus(container, t('lockSessionClosed'))
   })

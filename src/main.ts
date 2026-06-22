@@ -14,7 +14,7 @@ import { renderSolution, solutionViewHint, type SolutionView } from './game/solu
 import { clampGateCount, createGameState, MIN_MATCH_PIN_COUNT, resetGameState } from './game/types'
 import { getLanguage, languageLabel, setLanguage, t, type Language } from './i18n'
 
-const APP_VERSION = '0.3.10'
+const APP_VERSION = '0.4.0'
 const state = createGameState()
 let cachedSolutionMoves: SolveMove[] | undefined
 let cachedSolutionResult: ReturnType<typeof solveLock> | undefined
@@ -26,10 +26,44 @@ let matchRequestId = 0
 type TabId = 'setup' | 'solution'
 
 const MOBILE_MQ = window.matchMedia('(max-width: 767px)')
-const showAdminPanel = new URLSearchParams(window.location.search).has('admin')
+const isAdminRoute = window.location.pathname.replace(/\/$/, '') === '/admin'
 const currentLanguage = getLanguage()
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
+function renderAdminApp(): void {
+  document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
+    <main class="admin-page">
+      <header class="admin-page-header">
+        <div>
+          <h1 class="app-title">${t('admin')}</h1>
+          <p class="app-meta">${t('appVersion')} v${APP_VERSION}</p>
+        </div>
+        <div class="admin-page-header-actions">
+          <a class="chest-btn" href="/">${t('appTitle')}</a>
+          <label class="language-select">
+            <span>${t('language')}</span>
+            <select id="language-picker" aria-label="${t('language')}">
+              <option value="en" ${currentLanguage === 'en' ? 'selected' : ''}>${languageLabel('en')}</option>
+              <option value="de" ${currentLanguage === 'de' ? 'selected' : ''}>${languageLabel('de')}</option>
+            </select>
+          </label>
+        </div>
+      </header>
+      <div id="admin-page-panel"></div>
+    </main>
+  `
+
+  document.querySelector<HTMLSelectElement>('#language-picker')?.addEventListener('change', (event) => {
+    setLanguage((event.target as HTMLSelectElement).value as Language)
+    window.location.reload()
+  })
+
+  mountAdminPanel(document.querySelector<HTMLDivElement>('#admin-page-panel')!, {
+    layout: 'page',
+  })
+}
+
+function renderSolverApp(): void {
+  document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <main class="layout" data-active-tab="setup">
   <section class="game-area" aria-label="Game area">
     <header class="app-header">
@@ -113,7 +147,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div id="lock-cards"></div>
   </section>
 
-  <aside class="sidebar${showAdminPanel ? ' sidebar--admin' : ''}" aria-label="Sidebar">
+  <aside class="sidebar" aria-label="Sidebar">
     <div class="sidebar-chest">
       <div id="chest-panel"></div>
     </div>
@@ -146,7 +180,6 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <p class="panel-hint" id="solution-hint"></p>
       <ul id="inputs"></ul>
     </div>
-    ${showAdminPanel ? '<div class="sidebar-admin"><div id="admin-panel"></div></div>' : ''}
   </aside>
 
   <nav class="tab-bar" role="tablist" aria-label="${t('mainTabs')}">
@@ -168,7 +201,6 @@ const gateCountEl = document.querySelector<HTMLSelectElement>('#gate-count')!
 const resetLockEl = document.querySelector<HTMLButtonElement>('#reset-lock')!
 const languagePickerEl = document.querySelector<HTMLSelectElement>('#language-picker')!
 const tabButtons = document.querySelectorAll<HTMLButtonElement>('.tab-bar [role="tab"]')
-const adminPanelEl = document.querySelector<HTMLDivElement>('#admin-panel')
 
 function isMobileLayout(): boolean {
   return MOBILE_MQ.matches
@@ -346,5 +378,12 @@ chestPanelController = mountChestPanel(chestPanelEl, {
   getSolutionMoves: () => cachedSolutionMoves,
 })
 scheduleRemoteMatch()
+}
 
-if (adminPanelEl) mountAdminPanel(adminPanelEl)
+if (isAdminRoute) {
+  renderAdminApp()
+} else if (new URLSearchParams(window.location.search).has('admin')) {
+  window.location.replace('/admin')
+} else {
+  renderSolverApp()
+}

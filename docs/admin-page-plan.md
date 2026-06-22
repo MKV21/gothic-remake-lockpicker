@@ -3,6 +3,11 @@
 Goal: move moderation out of the solver sidebar into a dedicated admin page with
 enough horizontal space to review, filter, edit, and clean up database entries.
 
+Status: initial `/admin` page implemented in `0.4.0` with a full-width shell,
+client-side table filters, sorting, and the existing JSON editor in a larger
+detail panel. Server-side pagination and structured non-JSON editing remain
+future improvements.
+
 ## Route
 
 - Add a dedicated `/admin` client route.
