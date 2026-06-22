@@ -11,10 +11,10 @@ import { mountLockCards, updateLockCards } from './game/lockCards'
 import { matchLocks } from './game/remote'
 import { solveLock, type SolveMove } from './game/solver'
 import { renderSolution, solutionViewHint, type SolutionView } from './game/solutionPanel'
-import { clampGateCount, createGameState, resetGameState } from './game/types'
+import { clampGateCount, createGameState, MIN_MATCH_PIN_COUNT, resetGameState } from './game/types'
 import { getLanguage, languageLabel, setLanguage, t, type Language } from './i18n'
 
-const APP_VERSION = '0.3.6'
+const APP_VERSION = '0.3.7'
 const state = createGameState()
 let cachedSolutionMoves: SolveMove[] | undefined
 let cachedSolutionResult: ReturnType<typeof solveLock> | undefined
@@ -227,13 +227,22 @@ function currentStartPins(): (number | null)[] {
     .map((card) => (card.startPin === null ? null : card.startPin + 1))
 }
 
+function enteredStartPinCount(pins: readonly (number | null)[]): number {
+  let count = 0
+  for (const pin of pins) {
+    if (pin === null) break
+    count++
+  }
+  return count
+}
+
 function scheduleRemoteMatch(): void {
   if (matchTimer !== undefined) window.clearTimeout(matchTimer)
 
   const pins = currentStartPins()
-  if (pins[0] === null) {
+  if (enteredStartPinCount(pins) < MIN_MATCH_PIN_COUNT) {
     matchRequestId++
-    chestPanelController?.clearRemoteMatches(t('startFirstPinToSearch'))
+    chestPanelController?.clearRemoteMatches(t('startFirstPinsToSearch'))
     return
   }
 

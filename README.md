@@ -21,6 +21,8 @@ and keyboard/controller output profiles.
 This is the running change list for this fork. Add new user-visible fork
 changes here as they land.
 
+- `0.3.7`
+  - Delayed database matching until at least the first three start pins are set.
 - `0.3.6`
   - Hardened production security defaults for database TLS verification,
     expiring admin sessions, and visitor hash salt configuration.

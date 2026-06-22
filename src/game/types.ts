@@ -4,11 +4,20 @@ import {
   DEFAULT_GATE_COUNT,
   HOLE_COUNT,
   MAX_GATE_COUNT,
+  MIN_MATCH_PIN_COUNT,
   MIN_GATE_COUNT,
   clampGateCount,
 } from '../shared/lockValidation.js'
 
-export { CARD_COUNT, DEFAULT_GATE_COUNT, HOLE_COUNT, MAX_GATE_COUNT, MIN_GATE_COUNT, clampGateCount }
+export {
+  CARD_COUNT,
+  DEFAULT_GATE_COUNT,
+  HOLE_COUNT,
+  MAX_GATE_COUNT,
+  MIN_GATE_COUNT,
+  MIN_MATCH_PIN_COUNT,
+  clampGateCount,
+}
 export const DEFAULT_SOLUTION_PIN = 3 // hole 4
 
 export type { LinkType }

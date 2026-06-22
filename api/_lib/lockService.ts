@@ -4,6 +4,7 @@ import {
   createFingerprint,
   isSameCanonicalData,
   matchPins,
+  MIN_MATCH_PIN_COUNT,
   normalizeChestRecord,
   normalizeName,
   normalizeNameKey,
@@ -492,7 +493,7 @@ export async function findMatches(gateCountValue: string | undefined, pinsValue:
   if (!Number.isInteger(gateCount) || gateCount < 4 || gateCount > 7) {
     throw new ApiError(400, 'gateCount must be between 4 and 7')
   }
-  if (pins.length === 0) return []
+  if (pins.length < MIN_MATCH_PIN_COUNT) return []
 
   const result = await query<LockRow>(
     `

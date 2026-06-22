@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   HIDDEN_LOCK_SCORE_THRESHOLD,
+  findMatches,
   isReviewStatus,
   isLockPubliclyVisible,
   isStatusOnlyAdminLockPatch,
@@ -63,4 +64,8 @@ test('admin approve patch is status-only', () => {
   assert.equal(isStatusOnlyAdminLockPatch({ reviewStatus: 'approved', name: 'Chest' }), false)
   assert.equal(isStatusOnlyAdminLockPatch({ reviewStatus: 'archived' }), false)
   assert.equal(isStatusOnlyAdminLockPatch(null), false)
+})
+
+test('database matching waits for at least three pins', async () => {
+  assert.deepEqual(await findMatches('6', '1,2'), [])
 })

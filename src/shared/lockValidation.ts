@@ -6,6 +6,7 @@ export const MAX_GATE_COUNT = CARD_COUNT
 export const DEFAULT_GATE_COUNT = 6
 export const HOLE_COUNT = 7
 export const DEFAULT_SOLUTION_PIN = 4
+export const MIN_MATCH_PIN_COUNT = 3
 
 const LINK_TYPES = new Set<LinkType>(['none', 'same', 'opposite'])
 
