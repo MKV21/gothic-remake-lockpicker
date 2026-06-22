@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.4.9`: Telegram admin notifications for pending locks and imports.
 - `0.4.8`: Added Application localStorage import hint; approving imports clears them from the import queue.
 - `0.4.7`: More tolerant Xetoxyc import parsing, import rate limit disabled, import delete fixed.
 - `0.4.6`: Import spacing, import instructions, AI-assisted development disclaimer.
@@ -102,6 +103,10 @@ Vercel setup:
    - `DATABASE_URL`
    - `VISITOR_HASH_SALT`
    - `ADMIN_TOKEN`
+   - Optional Telegram notifications:
+     - `TELEGRAM_BOT_TOKEN`
+     - `TELEGRAM_ADMIN_CHAT_ID`
+     - `ADMIN_URL`
 4. Run `npm run db:migrate`.
 5. Run `npm run seed:import`.
 6. Deploy with `npm run build`.

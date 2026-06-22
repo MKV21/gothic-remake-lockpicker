@@ -1,5 +1,6 @@
 import { createOrReportLock } from '../_lib/lockService.js'
 import { enforceRateLimit } from '../_lib/rateLimit.js'
+import { notifyPendingLockSubmission } from '../_lib/telegram.js'
 import {
   getVisitorIdentity,
   handleApiError,
@@ -29,6 +30,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       ...identity,
       source: payload.submissionKind === 'auto-solve' ? 'auto-solve' : 'anonymous',
     })
+    await notifyPendingLockSubmission({ payload, result })
     sendJson(res, result.duplicate ? 200 : 201, result)
   } catch (error) {
     handleApiError(res, error)

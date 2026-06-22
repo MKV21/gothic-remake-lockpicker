@@ -1,4 +1,5 @@
 import { createXetoxycImportBatch, importPayloadMaxBytes } from '../_lib/importService.js'
+import { notifyPendingImportBatch } from '../_lib/telegram.js'
 import {
   getVisitorIdentity,
   handleApiError,
@@ -28,7 +29,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     if (typeof body.payload !== 'string') {
       throw new ApiError(400, 'Import payload must be a JSON string')
     }
-    sendJson(res, 201, await createXetoxycImportBatch(body.payload, identity))
+    const result = await createXetoxycImportBatch(body.payload, identity)
+    await notifyPendingImportBatch(result)
+    sendJson(res, 201, result)
   } catch (error) {
     handleApiError(res, error)
   }
