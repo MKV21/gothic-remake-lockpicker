@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.4.10`: Fixed Telegram Admin link handling when `ADMIN_URL` already points to `/admin`.
 - `0.4.9`: Telegram admin notifications for pending locks and imports.
 - `0.4.8`: Added Application localStorage import hint; approving imports clears them from the import queue.
 - `0.4.7`: More tolerant Xetoxyc import parsing, import rate limit disabled, import delete fixed.

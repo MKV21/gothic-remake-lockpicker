@@ -25,7 +25,8 @@ function configuredAdminUrl(): string {
   if (!baseUrl) return DEFAULT_ADMIN_URL
 
   const normalizedBaseUrl = /^https?:\/\//i.test(baseUrl) ? baseUrl : `https://${baseUrl}`
-  return `${normalizedBaseUrl.replace(/\/$/, '')}/admin`
+  const withoutTrailingSlash = normalizedBaseUrl.replace(/\/+$/, '')
+  return withoutTrailingSlash.endsWith('/admin') ? withoutTrailingSlash : `${withoutTrailingSlash}/admin`
 }
 
 function formatPins(pins: ChestRecord['initialPins']): string {

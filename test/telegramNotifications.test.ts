@@ -20,6 +20,8 @@ function captureTelegramEnv(): Record<string, string | undefined> {
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
     TELEGRAM_ADMIN_CHAT_ID: process.env.TELEGRAM_ADMIN_CHAT_ID,
     ADMIN_URL: process.env.ADMIN_URL,
+    VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    VERCEL_URL: process.env.VERCEL_URL,
   }
 }
 
@@ -91,6 +93,62 @@ test('pending import notifications skip batches without valid review items', asy
       invalidCount: 2,
     })
     assert.equal(fetchCalled, false)
+  } finally {
+    globalThis.fetch = originalFetch
+    restoreTelegramEnv(previousEnv)
+  }
+})
+
+test('pending import notifications keep explicit admin URLs unchanged', async () => {
+  const previousEnv = captureTelegramEnv()
+  const calls: { input: RequestInfo | URL; init?: RequestInit }[] = []
+  process.env.TELEGRAM_BOT_TOKEN = '123:test-token'
+  process.env.TELEGRAM_ADMIN_CHAT_ID = '256626875'
+  process.env.ADMIN_URL = 'https://gothic-lockpick-database.vercel.app/admin/'
+  globalThis.fetch = (async (input, init) => {
+    calls.push({ input, init })
+    return new Response(JSON.stringify({ ok: true }), { status: 200 })
+  }) as typeof fetch
+
+  try {
+    await notifyPendingImportBatch({
+      batchId: 'batch-1',
+      itemCount: 1,
+      validCount: 1,
+      invalidCount: 0,
+    })
+
+    const body = JSON.parse(String(calls[0]!.init?.body)) as { text: string }
+    assert.match(body.text, /Admin: https:\/\/gothic-lockpick-database\.vercel\.app\/admin$/)
+    assert.doesNotMatch(body.text, /\/admin\/admin/)
+  } finally {
+    globalThis.fetch = originalFetch
+    restoreTelegramEnv(previousEnv)
+  }
+})
+
+test('pending import notifications append admin path to deployment base URLs', async () => {
+  const previousEnv = captureTelegramEnv()
+  const calls: { input: RequestInfo | URL; init?: RequestInit }[] = []
+  process.env.TELEGRAM_BOT_TOKEN = '123:test-token'
+  process.env.TELEGRAM_ADMIN_CHAT_ID = '256626875'
+  delete process.env.ADMIN_URL
+  process.env.VERCEL_URL = 'gothic-lockpick-database.vercel.app'
+  globalThis.fetch = (async (input, init) => {
+    calls.push({ input, init })
+    return new Response(JSON.stringify({ ok: true }), { status: 200 })
+  }) as typeof fetch
+
+  try {
+    await notifyPendingImportBatch({
+      batchId: 'batch-1',
+      itemCount: 1,
+      validCount: 1,
+      invalidCount: 0,
+    })
+
+    const body = JSON.parse(String(calls[0]!.init?.body)) as { text: string }
+    assert.match(body.text, /Admin: https:\/\/gothic-lockpick-database\.vercel\.app\/admin$/)
   } finally {
     globalThis.fetch = originalFetch
     restoreTelegramEnv(previousEnv)
