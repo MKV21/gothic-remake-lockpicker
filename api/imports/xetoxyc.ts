@@ -1,5 +1,4 @@
 import { createXetoxycImportBatch, importPayloadMaxBytes } from '../_lib/importService.js'
-import { enforceRateLimit } from '../_lib/rateLimit.js'
 import {
   getVisitorIdentity,
   handleApiError,
@@ -23,13 +22,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 
   try {
     const identity = getVisitorIdentity(req, res)
-    await enforceRateLimit({
-      action: 'import-xetoxyc',
-      ...identity,
-      limit: 3,
-      ipLimit: 15,
-      windowHours: 24,
-    })
     const body = await readJsonBody<ImportPayload>(req, {
       maxBytes: importPayloadMaxBytes() + 4096,
     })

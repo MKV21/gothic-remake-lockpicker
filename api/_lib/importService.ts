@@ -130,6 +130,15 @@ async function refreshBatchCounts(batchId: string): Promise<void> {
     `
       UPDATE import_batches
       SET
+        item_count = (
+          SELECT COUNT(*)::integer FROM import_items WHERE batch_id = $1
+        ),
+        valid_count = (
+          SELECT COUNT(*)::integer FROM import_items WHERE batch_id = $1 AND status <> 'invalid'
+        ),
+        invalid_count = (
+          SELECT COUNT(*)::integer FROM import_items WHERE batch_id = $1 AND status = 'invalid'
+        ),
         approved_count = (
           SELECT COUNT(*)::integer FROM import_items WHERE batch_id = $1 AND status = 'approved'
         ),
@@ -342,6 +351,21 @@ export async function rejectAdminImportItem(id: string): Promise<AdminImportItem
   )
   await refreshBatchCounts(item.batch_id)
   return rowToImportItem(await getImportItemForAdmin(id))
+}
+
+export async function deleteAdminImportItem(id: string): Promise<void> {
+  const item = await getImportItemForAdmin(id)
+  const result = await query<{ id: string }>(
+    `
+      DELETE FROM import_items
+      WHERE id = $1
+      RETURNING id
+    `,
+    [id],
+  )
+
+  if (result.rows.length === 0) throw new ApiError(404, 'Import item not found')
+  await refreshBatchCounts(item.batch_id)
 }
 
 export function importedChestLinkCount(item: AdminImportItemRecord): number {

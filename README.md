@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.4.7`: More tolerant Xetoxyc import parsing, import rate limit disabled, import delete fixed.
 - `0.4.6`: Import spacing, import instructions, AI-assisted development disclaimer.
 - `0.4.5`: Paste-JSON import for Xetoxyc local saves with Admin approval.
 - `0.4.4`: Admin table delete action and compact table layout.
@@ -154,6 +155,7 @@ truth.
 - `POST /api/admin/locks`
 - `GET /api/admin/imports`
 - `PATCH /api/admin/imports`
+- `DELETE /api/admin/imports`
 - `POST /api/admin/names`
 - `GET /api/admin/reports`
 

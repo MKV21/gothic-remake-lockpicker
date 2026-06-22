@@ -34,6 +34,36 @@ test('parses pasted Xetoxyc gothic.chests localStorage exports', () => {
   assert.deepEqual(items[0]?.chest?.initialPins, [1, 2, 3, 4])
 })
 
+test('parses direct localStorage value copied from the console', () => {
+  const store = JSON.stringify({ old_camp_chest: sampleChest })
+  const items = parseXetoxycLocalStorageImport(`'${store}'`)
+
+  assert.equal(items.length, 1)
+  assert.equal(items[0]?.storageKey, 'old_camp_chest')
+  assert.equal(items[0]?.chest?.name, 'Old Camp chest')
+})
+
+test('parses escaped console output after outer quotes were removed', () => {
+  const store = JSON.stringify({ old_camp_chest: sampleChest })
+  const escaped = store.replaceAll('"', '\\"')
+  const items = parseXetoxycLocalStorageImport(escaped)
+
+  assert.equal(items.length, 1)
+  assert.equal(items[0]?.storageKey, 'old_camp_chest')
+  assert.deepEqual(items[0]?.chest?.initialPins, [1, 2, 3, 4])
+})
+
+test('parses JSON.stringify wrapper output copied from the console', () => {
+  const store = JSON.stringify({ old_camp_chest: sampleChest })
+  const wrapper = JSON.stringify({ 'gothic.chests': store }, null, 2)
+  const consoleOutput = `'${wrapper.replaceAll('\n', '\\n')}'`
+  const items = parseXetoxycLocalStorageImport(consoleOutput)
+
+  assert.equal(items.length, 1)
+  assert.equal(items[0]?.storageKey, 'old_camp_chest')
+  assert.equal(items[0]?.chest?.name, 'Old Camp chest')
+})
+
 test('parses direct chest arrays and falls back to item names', () => {
   const items = parseXetoxycLocalStorageImport(JSON.stringify([
     {

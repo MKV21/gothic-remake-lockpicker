@@ -280,7 +280,7 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
           <li>${t('importStepOpenConsole')}</li>
           <li>
             ${t('importStepRunSnippet')}
-            <pre class="import-code"><code>copy(JSON.stringify({ "gothic.chests": localStorage.getItem("gothic.chests") }, null, 2))</code></pre>
+            <pre class="import-code"><code>localStorage.getItem("gothic.chests")</code></pre>
           </li>
           <li>${t('importStepPasteHere')}</li>
         </ol>

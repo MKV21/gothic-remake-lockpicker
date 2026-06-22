@@ -2,6 +2,7 @@ import { assertAdmin } from '../_lib/adminAuth.js'
 import { ApiError } from '../_lib/db.js'
 import {
   approveAdminImportItem,
+  deleteAdminImportItem,
   listAdminImportItems,
   rejectAdminImportItem,
 } from '../_lib/importService.js'
@@ -20,8 +21,8 @@ type ImportPatch = {
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
-  if (req.method !== 'GET' && req.method !== 'PATCH') {
-    sendMethodNotAllowed(res, ['GET', 'PATCH'])
+  if (req.method !== 'GET' && req.method !== 'PATCH' && req.method !== 'DELETE') {
+    sendMethodNotAllowed(res, ['GET', 'PATCH', 'DELETE'])
     return
   }
 
@@ -37,6 +38,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     if (typeof body.id !== 'string' || !body.id) {
       throw new ApiError(400, 'Missing import item id')
     }
+    if (req.method === 'DELETE') {
+      await deleteAdminImportItem(body.id)
+      sendJson(res, 200, { ok: true })
+      return
+    }
+
     if (body.status === 'approved') {
       sendJson(res, 200, { item: await approveAdminImportItem(body.id) })
       return

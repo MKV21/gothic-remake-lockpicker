@@ -13,12 +13,57 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
-function parseJsonString(value: string): unknown {
+function unescapeConsoleWhitespace(value: string): string {
+  return value
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\\'/g, "'")
+}
+
+function unescapeJsonLikeString(value: string): string {
+  return unescapeConsoleWhitespace(value).replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+}
+
+function parseJsonCandidate(value: string): unknown | undefined {
   try {
     return JSON.parse(value) as unknown
   } catch {
-    throw new Error('Invalid JSON')
+    return undefined
   }
+}
+
+function parseJsonString(value: string): unknown {
+  const trimmed = value.trim()
+  const direct = parseJsonCandidate(trimmed)
+  if (direct !== undefined) return direct
+
+  const candidates: string[] = []
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+    candidates.push(unescapeConsoleWhitespace(trimmed.slice(1, -1)))
+  }
+  if (trimmed.startsWith('\\{') || trimmed.startsWith('\\[') || trimmed.includes('\\"')) {
+    candidates.push(unescapeJsonLikeString(trimmed))
+  }
+
+  for (const candidate of candidates) {
+    const parsed = parseJsonCandidate(candidate)
+    if (parsed !== undefined) return parsed
+  }
+
+  throw new Error('Invalid JSON')
+}
+
+function looksLikeJsonString(value: string): boolean {
+  const trimmed = value.trim()
+  return (
+    trimmed.startsWith('{') ||
+    trimmed.startsWith('[') ||
+    trimmed.startsWith('"') ||
+    trimmed.startsWith("'") ||
+    trimmed.startsWith('\\{') ||
+    trimmed.startsWith('\\[')
+  )
 }
 
 function unwrapJson(value: unknown): unknown {
@@ -27,9 +72,7 @@ function unwrapJson(value: unknown): unknown {
     if (typeof next !== 'string') return next
     const trimmed = next.trim()
     if (!trimmed) return next
-    if (!trimmed.startsWith('{') && !trimmed.startsWith('[') && !trimmed.startsWith('"')) {
-      return next
-    }
+    if (!looksLikeJsonString(trimmed)) return next
     next = parseJsonString(trimmed)
   }
   return next

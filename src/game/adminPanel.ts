@@ -408,7 +408,7 @@ function renderImportList(
   container: HTMLElement,
   imports: AdminImportItemRecord[],
   approveImport: (item: AdminImportItemRecord) => void,
-  rejectImport: (item: AdminImportItemRecord) => void,
+  deleteImport: (item: AdminImportItemRecord) => void,
 ): void {
   const list = container.querySelector<HTMLElement>('#admin-import-list')
   if (!list) return
@@ -447,8 +447,7 @@ function renderImportList(
       <tbody>
         ${imports
           .map((item) => {
-            const canReject = item.status === 'pending'
-            const canApprove = canReject && !item.isConflict
+            const canApprove = item.status === 'pending' && !item.isConflict
             const duplicate = item.isConflict
               ? t('conflict')
               : item.duplicateLockId
@@ -470,9 +469,8 @@ function renderImportList(
                       type="button"
                       class="admin-table-action admin-table-delete"
                       data-id="${escapeHtml(item.id)}"
-                      title="${escapeHtml(t('reject'))}"
-                      aria-label="${escapeHtml(`${t('reject')}: ${item.name ?? item.id}`)}"
-                      ${canReject ? '' : 'disabled'}
+                      title="${escapeHtml(t('delete'))}"
+                      aria-label="${escapeHtml(`${t('delete')}: ${item.name ?? item.id}`)}"
                     >&#215;</button>
                   </div>
                 </td>
@@ -514,7 +512,7 @@ function renderImportList(
   list.querySelectorAll<HTMLButtonElement>('.admin-table-delete').forEach((button) => {
     button.addEventListener('click', () => {
       const item = imports.find((entry) => entry.id === button.dataset.id)
-      if (item) rejectImport(item)
+      if (item) deleteImport(item)
     })
   })
 }
@@ -585,22 +583,22 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     }
   }
 
-  async function rejectImport(item: AdminImportItemRecord): Promise<void> {
-    const confirmed = window.confirm(`${t('reject')} "${item.name ?? item.id}"?`)
+  async function deleteImport(item: AdminImportItemRecord): Promise<void> {
+    const confirmed = window.confirm(`${t('delete')} "${item.name ?? item.id}"?`)
     if (!confirmed) return
 
     try {
-      await adminRequest<{ item: AdminImportItemRecord }>(
+      await adminRequest<{ ok: true }>(
         '/api/admin/imports',
         {
-          method: 'PATCH',
-          body: JSON.stringify({ id: item.id, status: 'rejected' }),
+          method: 'DELETE',
+          body: JSON.stringify({ id: item.id }),
         },
       )
       await loadImports()
-      setStatus(container, `${t('rejected')}: "${item.name ?? item.id}"`)
+      setStatus(container, `${t('delete')}: "${item.name ?? item.id}"`)
     } catch (error) {
-      setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
+      setStatus(container, error instanceof Error ? error.message : t('failedDelete'), true)
     }
   }
 
@@ -627,7 +625,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
 
   const renderImports = (): void => {
     if (layout !== 'page') return
-    renderImportList(container, importItems, approveImport, rejectImport)
+    renderImportList(container, importItems, approveImport, deleteImport)
   }
 
   container.innerHTML = `
