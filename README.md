@@ -152,7 +152,7 @@ truth.
 - `GET /api/admin/locks`
 - `POST /api/admin/locks`
 - `GET /api/admin/imports`
-- `PATCH /api/admin/imports/:id`
+- `PATCH /api/admin/imports`
 - `POST /api/admin/names`
 - `GET /api/admin/reports`
 

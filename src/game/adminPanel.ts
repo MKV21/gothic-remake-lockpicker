@@ -572,10 +572,10 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
   async function approveImport(item: AdminImportItemRecord): Promise<void> {
     try {
       await adminRequest<{ item: AdminImportItemRecord }>(
-        `/api/admin/imports/${encodeURIComponent(item.id)}`,
+        '/api/admin/imports',
         {
           method: 'PATCH',
-          body: JSON.stringify({ status: 'approved' }),
+          body: JSON.stringify({ id: item.id, status: 'approved' }),
         },
       )
       await Promise.all([loadLocks(), loadImports()])
@@ -591,10 +591,10 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
 
     try {
       await adminRequest<{ item: AdminImportItemRecord }>(
-        `/api/admin/imports/${encodeURIComponent(item.id)}`,
+        '/api/admin/imports',
         {
           method: 'PATCH',
-          body: JSON.stringify({ status: 'rejected' }),
+          body: JSON.stringify({ id: item.id, status: 'rejected' }),
         },
       )
       await loadImports()
