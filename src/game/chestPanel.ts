@@ -275,6 +275,15 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
       <details class="import-panel">
         <summary>${t('importXetoxycTitle')}</summary>
         <p class="panel-hint">${t('importXetoxycHint')}</p>
+        <ol class="import-steps">
+          <li>${t('importStepOpenXetoxyc')}</li>
+          <li>${t('importStepOpenConsole')}</li>
+          <li>
+            ${t('importStepRunSnippet')}
+            <pre class="import-code"><code>copy(JSON.stringify({ "gothic.chests": localStorage.getItem("gothic.chests") }, null, 2))</code></pre>
+          </li>
+          <li>${t('importStepPasteHere')}</li>
+        </ol>
         <textarea
           id="xetoxyc-import-json"
           class="import-textarea"

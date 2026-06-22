@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.4.6`: Import spacing, import instructions, AI-assisted development disclaimer.
 - `0.4.5`: Paste-JSON import for Xetoxyc local saves with Admin approval.
 - `0.4.4`: Admin table delete action and compact table layout.
 - `0.4.3`: German UI copy uses proper umlauts and ß.
@@ -185,3 +186,9 @@ src/
   shared/              Shared lock schema, validation, fingerprints
 data/chests/           Upstream seed chest JSON
 ```
+
+## AI-assisted development disclaimer
+
+Parts of this project were developed with assistance from generative AI tools.
+All generated code and text were reviewed and adapted by a human before
+publication.
