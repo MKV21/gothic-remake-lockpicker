@@ -11,6 +11,7 @@ export type SubmitLockResult = {
   duplicate: boolean
   hidden?: boolean
   skipped?: boolean
+  promotedFromAutoSolve?: boolean
 }
 
 export type VoteRemoteNameResult = {

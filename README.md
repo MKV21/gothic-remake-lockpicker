@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.4.12`: Explicit Save now promotes prior same-visitor auto-solve submissions to manual.
 - `0.4.11`: Admin-only usage statistics for page views, searches, lock loads, submissions, imports, and per-lock load counts.
 - `0.4.10`: Fixed Telegram Admin link handling when `ADMIN_URL` already points to `/admin`.
 - `0.4.9`: Telegram admin notifications for pending locks and imports.

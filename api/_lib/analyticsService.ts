@@ -236,6 +236,15 @@ export async function listAdminUsageStats(): Promise<UsageStatsRecord> {
               AND n.status <> 'rejected'
             ORDER BY
               CASE n.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+              CASE n.source
+                WHEN 'manual' THEN 0
+                WHEN 'anonymous' THEN 0
+                WHEN 'admin' THEN 0
+                WHEN 'xetoxyc-local-storage' THEN 1
+                WHEN 'seed' THEN 1
+                WHEN 'auto-solve' THEN 2
+                ELSE 1
+              END,
               n.score DESC,
               n.created_at ASC
             LIMIT 1

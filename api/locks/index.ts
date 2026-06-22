@@ -28,7 +28,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     const payload = await readJsonBody<SubmitLockPayload>(req)
     const result = await createOrReportLock(payload, {
       ...identity,
-      source: payload.submissionKind === 'auto-solve' ? 'auto-solve' : 'anonymous',
+      source: payload.submissionKind === 'auto-solve' ? 'auto-solve' : 'manual',
     })
     await notifyPendingLockSubmission({ payload, result })
     sendJson(res, result.duplicate ? 200 : 201, result)

@@ -73,14 +73,17 @@ export async function notifyPendingLockSubmission({
   payload,
   result,
 }: LockSubmissionNotification): Promise<void> {
-  if (result.skipped || result.duplicate) return
+  if (result.skipped || (result.duplicate && !result.promotedFromAutoSolve)) return
 
   const gateCount = payload.gateCount ?? payload.initialPins.length
   const linkCount = countSetLinks(payload.links, gateCount)
   const source = payload.submissionKind === 'auto-solve' ? 'auto-solve' : 'manual'
+  const title = result.promotedFromAutoSolve
+    ? 'Lock confirmed manually after auto-solve'
+    : 'New lock pending approval'
 
   await sendTelegramAdminNotification([
-    'New lock pending approval',
+    title,
     `Name: ${lockDisplayName(payload)}`,
     `Source: ${source}`,
     `Gates: ${gateCount}`,

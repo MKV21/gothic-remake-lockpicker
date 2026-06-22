@@ -181,3 +181,36 @@ test('pending lock notifications skip duplicates and skipped auto-solve submissi
     restoreTelegramEnv(previousEnv)
   }
 })
+
+test('pending lock notifications send manual promotion updates', async () => {
+  const previousEnv = captureTelegramEnv()
+  const calls: { input: RequestInfo | URL; init?: RequestInit }[] = []
+  process.env.TELEGRAM_BOT_TOKEN = '123:test-token'
+  process.env.TELEGRAM_ADMIN_CHAT_ID = '256626875'
+  globalThis.fetch = (async (input, init) => {
+    calls.push({ input, init })
+    return new Response(JSON.stringify({ ok: true }), { status: 200 })
+  }) as typeof fetch
+
+  try {
+    await notifyPendingLockSubmission({
+      payload: {
+        name: 'Manual chest',
+        gateCount: 4,
+        initialPins: [1, 2, 3, 4],
+        solutionPins: [4, 4, 4, 4],
+        submissionKind: 'manual',
+      },
+      result: { duplicate: true, promotedFromAutoSolve: true },
+    })
+
+    assert.equal(calls.length, 1)
+    const body = JSON.parse(String(calls[0]!.init?.body)) as { text: string }
+    assert.match(body.text, /Lock confirmed manually after auto-solve/)
+    assert.match(body.text, /Source: manual/)
+    assert.match(body.text, /Name: Manual chest/)
+  } finally {
+    globalThis.fetch = originalFetch
+    restoreTelegramEnv(previousEnv)
+  }
+})

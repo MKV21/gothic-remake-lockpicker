@@ -63,6 +63,7 @@ export type LockMutationResult = {
   duplicate: boolean
   hidden?: boolean
   skipped?: boolean
+  promotedFromAutoSolve?: boolean
 }
 
 export type NameVoteResult = {
@@ -83,6 +84,19 @@ export function isStatusOnlyAdminLockPatch(
   return keys.length === 1 && keys[0] === 'reviewStatus' && isReviewStatus(
     (payload as { reviewStatus?: unknown }).reviewStatus,
   )
+}
+
+function nameSourcePrioritySql(alias: string): string {
+  return `
+              CASE ${alias}.source
+                WHEN 'manual' THEN 0
+                WHEN 'anonymous' THEN 0
+                WHEN 'admin' THEN 0
+                WHEN 'xetoxyc-local-storage' THEN 1
+                WHEN 'seed' THEN 1
+                WHEN 'auto-solve' THEN 2
+                ELSE 1
+              END`
 }
 
 function jsonValue<T>(value: unknown, fallback: T): T {
@@ -223,6 +237,7 @@ async function getLockRow(id: string): Promise<LockRow | undefined> {
             )
             ORDER BY
               CASE n.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+              ${nameSourcePrioritySql('n')},
               n.score DESC,
               n.created_at ASC
           ) FILTER (WHERE n.id IS NOT NULL),
@@ -255,6 +270,7 @@ async function getLockRowByFingerprint(fingerprint: string): Promise<LockRow | u
             )
             ORDER BY
               CASE n.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+              ${nameSourcePrioritySql('n')},
               n.score DESC,
               n.created_at ASC
           ) FILTER (WHERE n.id IS NOT NULL),
@@ -364,6 +380,42 @@ async function hasPriorAutoSolveReport(
   return result.rows[0]?.exists === true
 }
 
+async function promotePriorAutoSolveReports(
+  lockId: string,
+  visitorHash: string | undefined,
+  chest: NormalizedChest,
+  source: string,
+): Promise<boolean> {
+  if (!visitorHash) return false
+
+  const result = await query<{ id: string }>(
+    `
+      UPDATE lock_reports
+      SET
+        source = $3,
+        submitted_name = $4,
+        solution_pins = $5::jsonb,
+        links = $6::jsonb,
+        solution_moves = $7::jsonb
+      WHERE lock_id = $1
+        AND visitor_hash = $2
+        AND source = 'auto-solve'
+      RETURNING id
+    `,
+    [
+      lockId,
+      visitorHash,
+      source,
+      chest.name,
+      JSON.stringify(chest.solutionPins),
+      JSON.stringify(chest.links),
+      JSON.stringify(chest.solutionMoves),
+    ],
+  )
+
+  return result.rows.length > 0
+}
+
 async function updateLockCanonicalData(lockId: string, chest: NormalizedChest): Promise<void> {
   await query(
     `
@@ -432,6 +484,7 @@ export async function createOrReportLock(
 ): Promise<LockMutationResult> {
   const chest = normalizeIncomingLock(payload)
   const source = identity.source ?? 'anonymous'
+  const isManualSubmission = source === 'manual' || source === 'anonymous'
   const reviewStatus = identity.reviewStatus ?? (source === 'seed' ? 'approved' : 'pending')
   const nameStatus = identity.nameStatus ?? (source === 'seed' ? 'approved' : 'pending')
   if (source === 'auto-solve' && countSetLinks(chest.links, chest.gateCount) === 0) {
@@ -442,11 +495,18 @@ export async function createOrReportLock(
 
   if (existing) {
     const existingLock = rowToLock(existing)
-    const canAttachName = includeHidden || isLockPubliclyVisible(toPublicLock(existingLock))
-    const shouldUpdateAutoSolve =
-      source === 'auto-solve' &&
+    const hasPriorAutoSolve =
       existing.review_status === 'pending' &&
       (await hasPriorAutoSolveReport(existing.id, identity.visitorHash))
+    const canAttachName = includeHidden || isLockPubliclyVisible(toPublicLock(existingLock))
+    const shouldUpdateAutoSolve =
+      existing.review_status === 'pending' &&
+      hasPriorAutoSolve &&
+      (source === 'auto-solve' || isManualSubmission)
+    const promotedFromAutoSolve =
+      isManualSubmission &&
+      hasPriorAutoSolve &&
+      (await promotePriorAutoSolveReports(existing.id, identity.visitorHash, chest, source))
 
     if (shouldUpdateAutoSolve) {
       await updateLockCanonicalData(existing.id, chest)
@@ -485,7 +545,7 @@ export async function createOrReportLock(
       source,
       isConflict: !isSameCanonicalData(chest, normalizedFromRow(existing)),
     })
-    if (canAttachName) {
+    if (canAttachName || promotedFromAutoSolve) {
       await upsertName({
         lockId: existing.id,
         name: chest.name,
@@ -494,7 +554,8 @@ export async function createOrReportLock(
         visitorHash: identity.visitorHash,
       })
     }
-    return publicMutationResult(existing.id, true, includeHidden)
+    const result = await publicMutationResult(existing.id, true, includeHidden)
+    return promotedFromAutoSolve ? { ...result, promotedFromAutoSolve } : result
   }
 
   const result = await query<{ id: string }>(
@@ -567,6 +628,7 @@ export async function findMatches(gateCountValue: string | undefined, pinsValue:
             )
             ORDER BY
               CASE n.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+              ${nameSourcePrioritySql('n')},
               n.score DESC,
               n.created_at ASC
           ) FILTER (WHERE n.id IS NOT NULL),
@@ -718,6 +780,7 @@ export async function listAdminLocks(): Promise<AdminLockRecord[]> {
             )
             ORDER BY
               CASE n.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+              ${nameSourcePrioritySql('n')},
               n.score DESC,
               n.created_at ASC
           ) FILTER (WHERE n.id IS NOT NULL),

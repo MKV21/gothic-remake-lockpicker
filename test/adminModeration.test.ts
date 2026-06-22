@@ -105,3 +105,14 @@ test('admin import approval clears the staged import item', async () => {
   assert.match(service, /export async function approveAdminImportItem[\s\S]*createOrReportLock/)
   assert.match(service, /export async function approveAdminImportItem[\s\S]*DELETE FROM import_items/)
 })
+
+test('manual saves promote prior auto-solve submissions from the same visitor', async () => {
+  const endpoint = await readFile(path.join(rootDir, 'api/locks/index.ts'), 'utf8')
+  const service = await readFile(path.join(rootDir, 'api/_lib/lockService.ts'), 'utf8')
+
+  assert.match(endpoint, /payload\.submissionKind === 'auto-solve' \? 'auto-solve' : 'manual'/)
+  assert.match(service, /promotePriorAutoSolveReports/)
+  assert.match(service, /source = 'auto-solve'/)
+  assert.match(service, /promotedFromAutoSolve/)
+  assert.match(service, /source === 'manual' \|\| source === 'anonymous'/)
+})
