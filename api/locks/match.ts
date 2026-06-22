@@ -1,3 +1,4 @@
+import { safeTrackRequestUsageEvent } from '../_lib/analyticsService.js'
 import { findMatches } from '../_lib/lockService.js'
 import {
   getQueryParam,
@@ -15,7 +16,25 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   }
 
   try {
-    const matches = await findMatches(getQueryParam(req, 'gateCount'), getQueryParam(req, 'pins'))
+    if (getQueryParam(req, 'event') === 'page-view') {
+      await safeTrackRequestUsageEvent('page_view', req, res)
+      sendJson(res, 200, { ok: true })
+      return
+    }
+
+    const gateCount = getQueryParam(req, 'gateCount')
+    const pins = getQueryParam(req, 'pins')
+    const matches = await findMatches(gateCount, pins)
+    const pinCount = pins ? pins.split(',').filter(Boolean).length : 0
+    if (pinCount >= 3) {
+      await safeTrackRequestUsageEvent('match_search', req, res, {
+        metadata: {
+          gateCount: Number(gateCount),
+          pinCount,
+          matchCount: matches.length,
+        },
+      })
+    }
     sendJson(res, 200, { matches })
   } catch (error) {
     handleApiError(res, error)

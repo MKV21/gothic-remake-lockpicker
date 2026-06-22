@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.4.11`: Admin-only usage statistics for page views, searches, lock loads, submissions, imports, and per-lock load counts.
 - `0.4.10`: Fixed Telegram Admin link handling when `ADMIN_URL` already points to `/admin`.
 - `0.4.9`: Telegram admin notifications for pending locks and imports.
 - `0.4.8`: Added Application localStorage import hint; approving imports clears them from the import queue.
@@ -80,6 +81,7 @@ matching, duplicate handling, source attribution, and name quality workflows.
 - Hide chest names until the user explicitly reveals them.
 - Suggest better lock names and vote on names.
 - Paste-import Xetoxyc local browser saves for admin review.
+- Admin-only usage statistics for page views, searches, lock loads, and moderation activity.
 - Output solution as Moves, Keyboard, Xbox, PS5, or Switch input chain.
 - Seed import for upstream `data/chests` and optional religiosa1 `locks/`.
 

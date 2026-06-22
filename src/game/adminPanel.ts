@@ -5,6 +5,7 @@ import type {
   ImportItemStatus,
   RemoteLockRecord,
   ReviewStatus,
+  UsageStatsRecord,
 } from '../shared/lockTypes'
 import { getLanguage, t } from '../i18n'
 import { countSetLinks } from '../shared/lockValidation'
@@ -162,6 +163,123 @@ function importIdentityTitle(item: AdminImportItemRecord): string {
 function entryCountLabel(visibleCount: number, totalCount: number): string {
   if (visibleCount === totalCount) return `${t('entryCount')}: ${totalCount}`
   return `${t('entryCount')}: ${visibleCount} / ${totalCount}`
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat(getLanguage()).format(value)
+}
+
+function formatDay(value: string): string {
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(getLanguage(), {
+    month: 'short',
+    day: 'numeric',
+  }).format(date)
+}
+
+function renderMetric(label: string, value: number, detail?: string): string {
+  return `
+    <div class="admin-stat-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(formatNumber(value))}</strong>
+      ${detail ? `<small>${escapeHtml(detail)}</small>` : ''}
+    </div>
+  `
+}
+
+function renderStats(container: HTMLElement, stats: UsageStatsRecord | undefined): void {
+  const target = container.querySelector<HTMLElement>('#admin-stats')
+  if (!target) return
+
+  if (!stats) {
+    target.innerHTML = `<p class="chest-empty">${t('noStatsYet')}</p>`
+    return
+  }
+
+  target.innerHTML = `
+    <div class="admin-stat-grid">
+      ${renderMetric(
+        t('pageViews'),
+        stats.totals.pageViews,
+        `${t('last24h')}: ${formatNumber(stats.recent.pageViews24h)} · ${t('last7d')}: ${formatNumber(stats.recent.pageViews7d)}`,
+      )}
+      ${renderMetric(t('uniqueVisitors'), stats.totals.uniqueVisitors)}
+      ${renderMetric(t('databaseSearches'), stats.totals.matchSearches, `${t('last7d')}: ${formatNumber(stats.recent.matchSearches7d)}`)}
+      ${renderMetric(t('lockLoads'), stats.totals.lockLoads, `${t('last7d')}: ${formatNumber(stats.recent.lockLoads7d)}`)}
+      ${renderMetric(t('lockSubmissions'), stats.totals.lockSubmissions, `${t('last7d')}: ${formatNumber(stats.recent.lockSubmissions7d)}`)}
+      ${renderMetric(
+        t('pendingApprovals'),
+        stats.totals.pendingLocks + stats.totals.pendingImports + stats.totals.pendingNames,
+        `${t('chests')}: ${formatNumber(stats.totals.pendingLocks)} · ${t('imports')}: ${formatNumber(stats.totals.pendingImports)} · ${t('nameSuggestions')}: ${formatNumber(stats.totals.pendingNames)}`,
+      )}
+      ${renderMetric(t('imports'), stats.totals.importBatches, `${t('importItems')}: ${formatNumber(stats.totals.importItems)}`)}
+    </div>
+    <div class="admin-stats-tables">
+      <section>
+        <h4>${t('lockLoadStats')}</h4>
+        <div class="admin-stats-table-wrap">
+          <table class="admin-lock-table admin-stats-table">
+            <thead>
+              <tr>
+                <th>${t('name')}</th>
+                <th>${t('loads')}</th>
+                <th>${t('last7d')}</th>
+                <th>${t('lastLoaded')}</th>
+                <th>${t('pins')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${stats.topLocks
+                .map(
+                  (lock) => `
+                    <tr>
+                      <td>${escapeHtml(lock.displayName)}</td>
+                      <td>${escapeHtml(formatNumber(lock.loadCount))}</td>
+                      <td>${escapeHtml(formatNumber(lock.loadCount7d))}</td>
+                      <td>${escapeHtml(lock.lastLoadedAt ? formatTimestamp(lock.lastLoadedAt) : t('never'))}</td>
+                      <td>${escapeHtml(lock.initialPins.join(', '))}</td>
+                    </tr>
+                  `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section>
+        <h4>${t('dailyUsage')}</h4>
+        <div class="admin-stats-table-wrap">
+          <table class="admin-lock-table admin-stats-table">
+            <thead>
+              <tr>
+                <th>${t('date')}</th>
+                <th>${t('pageViews')}</th>
+                <th>${t('searches')}</th>
+                <th>${t('loads')}</th>
+                <th>${t('submissions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${stats.daily
+                .map(
+                  (day) => `
+                    <tr>
+                      <td>${escapeHtml(formatDay(day.day))}</td>
+                      <td>${escapeHtml(formatNumber(day.pageViews))}</td>
+                      <td>${escapeHtml(formatNumber(day.matchSearches))}</td>
+                      <td>${escapeHtml(formatNumber(day.lockLoads))}</td>
+                      <td>${escapeHtml(formatNumber(day.lockSubmissions + day.importBatches))}</td>
+                    </tr>
+                  `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  `
 }
 
 function lockSummary(lock: RemoteLockRecord): string {
@@ -521,6 +639,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
   const layout = options.layout ?? 'sidebar'
   let locks: AdminLockRecord[] = []
   let importItems: AdminImportItemRecord[] = []
+  let usageStats: UsageStatsRecord | undefined
   let selectedLock: AdminLockRecord | undefined
   let filters: AdminFilters = {
     query: '',
@@ -644,7 +763,13 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
       <p class="admin-status" aria-live="polite"></p>
       ${
         layout === 'page'
-          ? `<div class="admin-filter-bar">
+          ? `<section class="admin-stats-section">
+              <div class="admin-section-header">
+                <h3>${t('statistics')}</h3>
+              </div>
+              <div id="admin-stats" class="admin-stats"></div>
+            </section>
+            <div class="admin-filter-bar">
               <label>
                 <span>${t('search')}</span>
                 <input id="admin-filter-query" type="search" placeholder="${t('search')}" />
@@ -741,7 +866,25 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     }
   }
 
+  const loadStats = async (): Promise<void> => {
+    if (layout !== 'page') return
+    try {
+      const body = await adminRequest<{ stats: UsageStatsRecord }>('/api/admin/reports')
+      usageStats = body.stats
+      renderStats(container, usageStats)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('failedLoad')
+      setStatus(
+        container,
+        message === 'Unauthorized' ? t('enterAdminPassword') : message,
+        true,
+      )
+    }
+  }
+
   if (layout === 'page') {
+    renderStats(container, usageStats)
+
     container.querySelector<HTMLInputElement>('#admin-filter-query')?.addEventListener('input', (event) => {
       filters = { ...filters, query: (event.target as HTMLInputElement).value }
       renderFilteredLocks()
@@ -771,8 +914,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
 
     try {
       await createAdminSession(password)
-      await loadLocks()
-      await loadImports()
+      await Promise.all([loadLocks(), loadImports(), loadStats()])
     } catch (error) {
       const message = error instanceof Error ? error.message : t('failedLoad')
       setStatus(
@@ -784,18 +926,20 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
   })
 
   container.querySelector<HTMLButtonElement>('#admin-refresh')?.addEventListener('click', () => {
-    void loadLocks().then(() => loadImports())
+    void Promise.all([loadLocks(), loadImports(), loadStats()])
   })
 
   container.querySelector<HTMLButtonElement>('#admin-lock-session')?.addEventListener('click', async () => {
     await clearAdminSession().catch(() => undefined)
     locks = []
     importItems = []
+    usageStats = undefined
     selectedLock = undefined
     const input = container.querySelector<HTMLInputElement>('#admin-password')
     if (input) input.value = ''
     renderLocks()
     renderImports()
+    renderStats(container, usageStats)
     renderEditor(container, undefined)
     setStatus(container, t('lockSessionClosed'))
   })
@@ -834,5 +978,5 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     }
   })
 
-  void loadLocks().then(() => loadImports())
+  void Promise.all([loadLocks(), loadImports(), loadStats()])
 }

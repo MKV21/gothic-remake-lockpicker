@@ -8,13 +8,13 @@ import {
   type ChestPanelController,
 } from './game/chestPanel'
 import { mountLockCards, updateLockCards } from './game/lockCards'
-import { matchLocks } from './game/remote'
+import { matchLocks, trackPageView } from './game/remote'
 import { solveLock, type SolveMove } from './game/solver'
 import { renderSolution, solutionViewHint, type SolutionView } from './game/solutionPanel'
 import { clampGateCount, createGameState, MIN_MATCH_PIN_COUNT, resetGameState } from './game/types'
 import { getLanguage, languageLabel, setLanguage, t, type Language } from './i18n'
 
-const APP_VERSION = '0.4.10'
+const APP_VERSION = '0.4.11'
 const state = createGameState()
 let cachedSolutionMoves: SolveMove[] | undefined
 let cachedSolutionResult: ReturnType<typeof solveLock> | undefined
@@ -386,4 +386,5 @@ if (isAdminRoute) {
   window.location.replace('/admin')
 } else {
   renderSolverApp()
+  void trackPageView()
 }

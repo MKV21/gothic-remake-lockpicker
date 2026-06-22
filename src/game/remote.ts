@@ -45,6 +45,16 @@ export async function submitXetoxycImport(payload: string): Promise<ImportSubmis
   return readJson<ImportSubmissionResult>(response)
 }
 
+export async function trackPageView(): Promise<void> {
+  const params = new URLSearchParams({
+    event: 'page-view',
+    t: String(Date.now()),
+  })
+  await fetch(`/api/locks/match?${params.toString()}`, {
+    credentials: 'same-origin',
+  }).catch(() => undefined)
+}
+
 export async function matchLocks(gateCount: number, pins: readonly (number | null)[]): Promise<LockMatchRecord[]> {
   const enteredPins: number[] = []
   for (const pin of pins) {

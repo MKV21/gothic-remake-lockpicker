@@ -94,3 +94,48 @@ export type LockMatchRecord = {
   reviewStatus: ReviewStatus
   names: LockNameRecord[]
 }
+
+export type UsageTopLockRecord = {
+  id: string
+  displayName: string
+  gateCount: number
+  initialPins: number[]
+  reviewStatus: ReviewStatus
+  loadCount: number
+  loadCount7d: number
+  lastLoadedAt: string | null
+}
+
+export type UsageDailyRecord = {
+  day: string
+  pageViews: number
+  matchSearches: number
+  lockLoads: number
+  lockSubmissions: number
+  importBatches: number
+}
+
+export type UsageStatsRecord = {
+  totals: {
+    pageViews: number
+    uniqueVisitors: number
+    matchSearches: number
+    lockLoads: number
+    lockSubmissions: number
+    importBatches: number
+    importItems: number
+    pendingLocks: number
+    pendingImports: number
+    pendingNames: number
+  }
+  recent: {
+    pageViews24h: number
+    pageViews7d: number
+    matchSearches7d: number
+    lockLoads7d: number
+    lockSubmissions7d: number
+    importBatches7d: number
+  }
+  daily: UsageDailyRecord[]
+  topLocks: UsageTopLockRecord[]
+}
