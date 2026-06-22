@@ -21,6 +21,8 @@ and keyboard/controller output profiles.
 This is the running change list for this fork. Add new user-visible fork
 changes here as they land.
 
+- `0.4.3`
+  - Updated German UI copy to use proper umlauts and ß.
 - `0.4.2`
   - Changed the Admin table approval icon colors: green means already approved,
     yellow means approval is still needed.
