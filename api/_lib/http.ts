@@ -51,15 +51,19 @@ export function handleApiError(res: ApiResponse, error: unknown): void {
   sendJson(res, 500, { error: 'Internal server error' })
 }
 
-export async function readJsonBody<T>(req: ApiRequest): Promise<T> {
+export async function readJsonBody<T>(
+  req: ApiRequest,
+  options: { maxBytes?: number } = {},
+): Promise<T> {
   if (req.body !== undefined) return req.body as T
 
+  const maxBytes = options.maxBytes ?? MAX_JSON_BODY_BYTES
   const chunks: Buffer[] = []
   let byteLength = 0
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     byteLength += buffer.byteLength
-    if (byteLength > MAX_JSON_BODY_BYTES) {
+    if (byteLength > maxBytes) {
       throw new ApiError(413, 'Request body too large')
     }
     chunks.push(buffer)

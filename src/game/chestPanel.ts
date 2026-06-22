@@ -6,6 +6,7 @@ import {
 import {
   getRemoteLock,
   submitLock,
+  submitXetoxycImport,
   suggestRemoteName,
   voteRemoteName,
 } from './remote'
@@ -46,6 +47,13 @@ function setRemoteStatus(container: HTMLElement, message: string, isError = fals
   if (!status) return
   status.textContent = message
   status.classList.toggle('remote-status--error', isError)
+}
+
+function setImportStatus(container: HTMLElement, message: string, isError = false): void {
+  const status = container.querySelector<HTMLElement>('.import-status')
+  if (!status) return
+  status.textContent = message
+  status.classList.toggle('chest-status--error', isError)
 }
 
 export function getChestName(container: HTMLElement): string {
@@ -264,6 +272,20 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
         <ul id="remote-match-list" class="remote-match-list"></ul>
         <div id="remote-lock-details"></div>
       </section>
+      <details class="import-panel">
+        <summary>${t('importXetoxycTitle')}</summary>
+        <p class="panel-hint">${t('importXetoxycHint')}</p>
+        <textarea
+          id="xetoxyc-import-json"
+          class="import-textarea"
+          spellcheck="false"
+          placeholder="${t('importXetoxycPlaceholder')}"
+        ></textarea>
+        <div class="chest-actions">
+          <button type="button" id="xetoxyc-import-submit" class="chest-btn">${t('submitImportForReview')}</button>
+        </div>
+        <p class="import-status" aria-live="polite"></p>
+      </details>
     </section>
   `
 
@@ -317,6 +339,30 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
       )
     } catch (error) {
       setStatus(
+        container,
+        error instanceof Error ? error.message : t('failedSubmit'),
+        true,
+      )
+    }
+  })
+
+  container.querySelector<HTMLButtonElement>('#xetoxyc-import-submit')?.addEventListener('click', async () => {
+    const input = container.querySelector<HTMLTextAreaElement>('#xetoxyc-import-json')
+    const payload = input?.value.trim() ?? ''
+    if (!payload) {
+      setImportStatus(container, t('importJsonRequired'), true)
+      return
+    }
+
+    try {
+      const result = await submitXetoxycImport(payload)
+      if (input) input.value = ''
+      setImportStatus(
+        container,
+        `${t('importSubmittedForReview')}: ${result.validCount}/${result.itemCount} ${t('validImports')}, ${result.invalidCount} ${t('invalidImports')}`,
+      )
+    } catch (error) {
+      setImportStatus(
         container,
         error instanceof Error ? error.message : t('failedSubmit'),
         true,

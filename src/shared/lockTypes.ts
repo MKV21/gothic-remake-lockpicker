@@ -4,6 +4,8 @@ export type LinkType = 'none' | 'same' | 'opposite'
 
 export type ReviewStatus = 'approved' | 'pending' | 'rejected'
 
+export type ImportItemStatus = 'pending' | 'approved' | 'rejected' | 'invalid'
+
 export type SolveMove = {
   card: number
   direction: Direction
@@ -50,6 +52,37 @@ export type AdminLockRecord = RemoteLockRecord & {
     firstReportSource: string | null
     firstReportCreatedAt: string | null
   }
+}
+
+export type AdminImportItemRecord = {
+  id: string
+  batchId: string
+  status: ImportItemStatus
+  source: string
+  storageKey: string | null
+  name: string | null
+  fingerprint: string | null
+  gateCount: number | null
+  initialPins: number[] | null
+  solutionPins: number[] | null
+  links: LinkType[][] | null
+  solutionMoves: SolveMove[] | null
+  error: string | null
+  duplicateLockId: string | null
+  isConflict: boolean
+  approvedLockId: string | null
+  visitorHash: string | null
+  ipHash: string | null
+  batchCreatedAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ImportSubmissionResult = {
+  batchId: string
+  itemCount: number
+  validCount: number
+  invalidCount: number
 }
 
 export type LockMatchRecord = {

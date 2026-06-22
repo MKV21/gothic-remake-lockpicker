@@ -1,4 +1,9 @@
-import type { ChestRecord, LockMatchRecord, RemoteLockRecord } from '../shared/lockTypes'
+import type {
+  ChestRecord,
+  ImportSubmissionResult,
+  LockMatchRecord,
+  RemoteLockRecord,
+} from '../shared/lockTypes'
 import { parsePins } from '../shared/lockValidation'
 
 export type SubmitLockResult = {
@@ -29,6 +34,15 @@ export async function submitLock(
     body: JSON.stringify({ ...chest, submissionKind: options.submissionKind ?? 'manual' }),
   })
   return readJson<SubmitLockResult>(response)
+}
+
+export async function submitXetoxycImport(payload: string): Promise<ImportSubmissionResult> {
+  const response = await fetch('/api/imports/xetoxyc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payload }),
+  })
+  return readJson<ImportSubmissionResult>(response)
 }
 
 export async function matchLocks(gateCount: number, pins: readonly (number | null)[]): Promise<LockMatchRecord[]> {

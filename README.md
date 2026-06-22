@@ -20,7 +20,8 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
-- `0.4.4`: Admin table delete action, compact table layout, shorter changelog.
+- `0.4.5`: Paste-JSON import for Xetoxyc local saves with Admin approval.
+- `0.4.4`: Admin table delete action and compact table layout.
 - `0.4.3`: German UI copy uses proper umlauts and ß.
 - `0.4.2`: Clearer Admin approval icon colors.
 - `0.4.1`: Admin table identity hints, row click, inline approve, entry count.
@@ -73,6 +74,7 @@ matching, duplicate handling, source attribution, and name quality workflows.
 - Load a database match back into the solver.
 - Hide chest names until the user explicitly reveals them.
 - Suggest better lock names and vote on names.
+- Paste-import Xetoxyc local browser saves for admin review.
 - Output solution as Moves, Keyboard, Xbox, PS5, or Switch input chain.
 - Seed import for upstream `data/chests` and optional religiosa1 `locks/`.
 
@@ -145,9 +147,12 @@ truth.
 - `POST /api/locks`
 - `POST /api/locks/:id/names`
 - `POST /api/names/:nameId/vote`
+- `POST /api/imports/xetoxyc`
 - `POST /api/admin/session`
 - `GET /api/admin/locks`
 - `POST /api/admin/locks`
+- `GET /api/admin/imports`
+- `PATCH /api/admin/imports/:id`
 - `POST /api/admin/names`
 - `GET /api/admin/reports`
 

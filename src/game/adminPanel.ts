@@ -1,4 +1,11 @@
-import type { AdminLockRecord, ChestRecord, RemoteLockRecord, ReviewStatus } from '../shared/lockTypes'
+import type {
+  AdminImportItemRecord,
+  AdminLockRecord,
+  ChestRecord,
+  ImportItemStatus,
+  RemoteLockRecord,
+  ReviewStatus,
+} from '../shared/lockTypes'
 import { getLanguage, t } from '../i18n'
 import { countSetLinks } from '../shared/lockValidation'
 
@@ -67,6 +74,19 @@ function statusLabel(status: ReviewStatus): string {
   }
 }
 
+function importStatusLabel(status: ImportItemStatus): string {
+  switch (status) {
+    case 'approved':
+      return t('approved')
+    case 'pending':
+      return t('pending')
+    case 'rejected':
+      return t('rejected')
+    case 'invalid':
+      return t('invalid')
+  }
+}
+
 function lockToPayload(lock: RemoteLockRecord): AdminLockPayload {
   return {
     name: lock.displayName,
@@ -81,6 +101,10 @@ function lockToPayload(lock: RemoteLockRecord): AdminLockPayload {
 
 function setLinkCount(lock: RemoteLockRecord): number {
   return countSetLinks(lock.links, lock.gateCount)
+}
+
+function importLinkCount(item: AdminImportItemRecord): number {
+  return countSetLinks(item.links ?? undefined, item.gateCount ?? undefined)
 }
 
 function maxNameScore(lock: RemoteLockRecord): number {
@@ -117,6 +141,21 @@ function adminIdentityTitle(lock: AdminLockRecord): string {
     `${t('visitorHash')}: ${lock.admin.firstReportVisitorHash ?? '-'}`,
     `${t('source')}: ${lock.admin.firstReportSource ?? '-'}`,
     `${t('created')}: ${lock.admin.firstReportCreatedAt ? formatTimestamp(lock.admin.firstReportCreatedAt) : '-'}`,
+  ].join('\n')
+}
+
+function importIdentityLabel(item: AdminImportItemRecord): string {
+  if (item.ipHash) return `IP ${shortHash(item.ipHash)}`
+  if (item.visitorHash) return `Visitor ${shortHash(item.visitorHash)}`
+  return '-'
+}
+
+function importIdentityTitle(item: AdminImportItemRecord): string {
+  return [
+    `${t('ipHash')}: ${item.ipHash ?? '-'}`,
+    `${t('visitorHash')}: ${item.visitorHash ?? '-'}`,
+    `${t('source')}: ${item.source}`,
+    `${t('created')}: ${formatTimestamp(item.batchCreatedAt)}`,
   ].join('\n')
 }
 
@@ -365,9 +404,125 @@ function renderLockList(
   })
 }
 
+function renderImportList(
+  container: HTMLElement,
+  imports: AdminImportItemRecord[],
+  approveImport: (item: AdminImportItemRecord) => void,
+  rejectImport: (item: AdminImportItemRecord) => void,
+): void {
+  const list = container.querySelector<HTMLElement>('#admin-import-list')
+  if (!list) return
+
+  if (imports.length === 0) {
+    list.innerHTML = `<p class="chest-empty">${t('noImports')}</p>`
+    return
+  }
+
+  list.innerHTML = `
+    <table class="admin-lock-table admin-import-table">
+      <colgroup>
+        <col class="admin-col-actions" />
+        <col class="admin-col-name" />
+        <col class="admin-col-status" />
+        <col class="admin-col-ip" />
+        <col class="admin-col-gates" />
+        <col class="admin-col-pins" />
+        <col class="admin-col-links" />
+        <col class="admin-col-status" />
+        <col class="admin-col-created" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>${t('actions')}</th>
+          <th>${t('name')}</th>
+          <th>${t('reviewStatus')}</th>
+          <th>${t('ipHash')}</th>
+          <th>${t('gates')}</th>
+          <th>${t('pins')}</th>
+          <th>${t('linksSet')}</th>
+          <th>${t('duplicate')}</th>
+          <th>${t('created')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${imports
+          .map((item) => {
+            const canReject = item.status === 'pending'
+            const canApprove = canReject && !item.isConflict
+            const duplicate = item.isConflict
+              ? t('conflict')
+              : item.duplicateLockId
+                ? t('duplicate')
+                : '-'
+            return `
+              <tr class="admin-import-row">
+                <td>
+                  <div class="admin-table-actions">
+                    <button
+                      type="button"
+                      class="admin-table-action admin-table-approve admin-table-approve--pending"
+                      data-id="${escapeHtml(item.id)}"
+                      title="${escapeHtml(t('approve'))}"
+                      aria-label="${escapeHtml(`${t('approve')}: ${item.name ?? item.id}`)}"
+                      ${canApprove ? '' : 'disabled'}
+                    >&#10003;</button>
+                    <button
+                      type="button"
+                      class="admin-table-action admin-table-delete"
+                      data-id="${escapeHtml(item.id)}"
+                      title="${escapeHtml(t('reject'))}"
+                      aria-label="${escapeHtml(`${t('reject')}: ${item.name ?? item.id}`)}"
+                      ${canReject ? '' : 'disabled'}
+                    >&#215;</button>
+                  </div>
+                </td>
+                <td>
+                  <span class="admin-table-name">${escapeHtml(item.name ?? item.error ?? item.storageKey ?? item.id)}</span>
+                  ${
+                    item.error
+                      ? `<span class="admin-import-error">${escapeHtml(item.error)}</span>`
+                      : item.storageKey
+                        ? `<span class="admin-import-meta">${t('storageKey')}: ${escapeHtml(item.storageKey)}</span>`
+                        : ''
+                  }
+                </td>
+                <td>${escapeHtml(importStatusLabel(item.status))}</td>
+                <td>
+                  <span class="admin-hash" title="${escapeHtml(importIdentityTitle(item))}">
+                    ${escapeHtml(importIdentityLabel(item))}
+                  </span>
+                </td>
+                <td>${item.gateCount ?? '-'}</td>
+                <td>${escapeHtml(item.initialPins?.join(', ') ?? '-')}</td>
+                <td>${importLinkCount(item)}</td>
+                <td>${escapeHtml(duplicate)}</td>
+                <td>${escapeHtml(formatTimestamp(item.createdAt))}</td>
+              </tr>
+            `
+          })
+          .join('')}
+      </tbody>
+    </table>
+  `
+
+  list.querySelectorAll<HTMLButtonElement>('.admin-table-approve').forEach((button) => {
+    button.addEventListener('click', () => {
+      const item = imports.find((entry) => entry.id === button.dataset.id)
+      if (item) approveImport(item)
+    })
+  })
+  list.querySelectorAll<HTMLButtonElement>('.admin-table-delete').forEach((button) => {
+    button.addEventListener('click', () => {
+      const item = imports.find((entry) => entry.id === button.dataset.id)
+      if (item) rejectImport(item)
+    })
+  })
+}
+
 export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptions = {}): void {
   const layout = options.layout ?? 'sidebar'
   let locks: AdminLockRecord[] = []
+  let importItems: AdminImportItemRecord[] = []
   let selectedLock: AdminLockRecord | undefined
   let filters: AdminFilters = {
     query: '',
@@ -414,6 +569,41 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     }
   }
 
+  async function approveImport(item: AdminImportItemRecord): Promise<void> {
+    try {
+      await adminRequest<{ item: AdminImportItemRecord }>(
+        `/api/admin/imports/${encodeURIComponent(item.id)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'approved' }),
+        },
+      )
+      await Promise.all([loadLocks(), loadImports()])
+      setStatus(container, `${t('approved')}: "${item.name ?? item.id}"`)
+    } catch (error) {
+      setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
+    }
+  }
+
+  async function rejectImport(item: AdminImportItemRecord): Promise<void> {
+    const confirmed = window.confirm(`${t('reject')} "${item.name ?? item.id}"?`)
+    if (!confirmed) return
+
+    try {
+      await adminRequest<{ item: AdminImportItemRecord }>(
+        `/api/admin/imports/${encodeURIComponent(item.id)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'rejected' }),
+        },
+      )
+      await loadImports()
+      setStatus(container, `${t('rejected')}: "${item.name ?? item.id}"`)
+    } catch (error) {
+      setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
+    }
+  }
+
   const renderLocks = (): AdminLockRecord[] => {
     const visibleLocks = layout === 'page' ? filterAndSortLocks(locks, filters) : locks
     renderLockList(container, visibleLocks, (lock) => {
@@ -433,6 +623,11 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
       renderEditor(container, selectedLock)
     }
     setStatus(container, entryCountLabel(visibleLocks.length, locks.length))
+  }
+
+  const renderImports = (): void => {
+    if (layout !== 'page') return
+    renderImportList(container, importItems, approveImport, rejectImport)
   }
 
   container.innerHTML = `
@@ -489,6 +684,16 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
         <div id="admin-lock-list" class="admin-lock-list"></div>
         <div id="admin-editor" class="admin-editor-pane"></div>
       </div>
+      ${
+        layout === 'page'
+          ? `<section class="admin-import-section">
+              <div class="admin-section-header">
+                <h3>${t('imports')}</h3>
+              </div>
+              <div id="admin-import-list" class="admin-lock-list admin-import-list"></div>
+            </section>`
+          : ''
+      }
     </section>
   `
 
@@ -512,6 +717,22 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
       renderLocks()
       renderEditor(container, selectedLock)
       setStatus(container, entryCountLabel(visibleLocks.length, locks.length))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('failedLoad')
+      setStatus(
+        container,
+        message === 'Unauthorized' ? t('enterAdminPassword') : message,
+        true,
+      )
+    }
+  }
+
+  const loadImports = async (): Promise<void> => {
+    if (layout !== 'page') return
+    try {
+      const body = await adminRequest<{ imports: AdminImportItemRecord[] }>('/api/admin/imports')
+      importItems = Array.isArray(body.imports) ? body.imports : []
+      renderImports()
     } catch (error) {
       const message = error instanceof Error ? error.message : t('failedLoad')
       setStatus(
@@ -553,6 +774,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     try {
       await createAdminSession(password)
       await loadLocks()
+      await loadImports()
     } catch (error) {
       const message = error instanceof Error ? error.message : t('failedLoad')
       setStatus(
@@ -564,16 +786,18 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
   })
 
   container.querySelector<HTMLButtonElement>('#admin-refresh')?.addEventListener('click', () => {
-    void loadLocks()
+    void loadLocks().then(() => loadImports())
   })
 
   container.querySelector<HTMLButtonElement>('#admin-lock-session')?.addEventListener('click', async () => {
     await clearAdminSession().catch(() => undefined)
     locks = []
+    importItems = []
     selectedLock = undefined
     const input = container.querySelector<HTMLInputElement>('#admin-password')
     if (input) input.value = ''
     renderLocks()
+    renderImports()
     renderEditor(container, undefined)
     setStatus(container, t('lockSessionClosed'))
   })
@@ -612,5 +836,5 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     }
   })
 
-  void loadLocks()
+  void loadLocks().then(() => loadImports())
 }

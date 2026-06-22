@@ -192,7 +192,7 @@ function chestToGameState(chest: NormalizedChest): GameState {
   }
 }
 
-function normalizeIncomingLock(chest: ChestRecord): NormalizedChest {
+export function normalizeIncomingLock(chest: ChestRecord): NormalizedChest {
   const result = normalizeChestRecord(chest)
   if (!result.ok) throw new ApiError(400, result.error)
 
@@ -421,14 +421,23 @@ async function publicMutationResult(
 
 export async function createOrReportLock(
   payload: ChestRecord,
-  identity: { visitorHash?: string; ipHash?: string; source?: string; seedSourceId?: string } = {},
+  identity: {
+    visitorHash?: string
+    ipHash?: string
+    source?: string
+    seedSourceId?: string
+    reviewStatus?: ReviewStatus
+    nameStatus?: 'approved' | 'pending'
+  } = {},
 ): Promise<LockMutationResult> {
   const chest = normalizeIncomingLock(payload)
   const source = identity.source ?? 'anonymous'
+  const reviewStatus = identity.reviewStatus ?? (source === 'seed' ? 'approved' : 'pending')
+  const nameStatus = identity.nameStatus ?? (source === 'seed' ? 'approved' : 'pending')
   if (source === 'auto-solve' && countSetLinks(chest.links, chest.gateCount) === 0) {
     return { duplicate: false, skipped: true }
   }
-  const includeHidden = source === 'seed' || source === 'admin'
+  const includeHidden = source === 'seed' || source === 'admin' || reviewStatus === 'approved'
   const existing = await getLockRowByFingerprint(chest.fingerprint)
 
   if (existing) {
@@ -457,6 +466,17 @@ export async function createOrReportLock(
       )
     }
 
+    if (identity.reviewStatus) {
+      await query(
+        `
+          UPDATE locks
+          SET review_status = $2, updated_at = now()
+          WHERE id = $1
+        `,
+        [existing.id, identity.reviewStatus],
+      )
+    }
+
     await insertReport({
       lockId: existing.id,
       chest,
@@ -469,7 +489,7 @@ export async function createOrReportLock(
       await upsertName({
         lockId: existing.id,
         name: chest.name,
-        status: source === 'seed' ? 'approved' : 'pending',
+        status: nameStatus,
         source,
         visitorHash: identity.visitorHash,
       })
@@ -484,10 +504,10 @@ export async function createOrReportLock(
         initial_pins,
         solution_pins,
         links,
-        solution_moves,
-        fingerprint,
-        review_status,
-        seed_source_id
+      solution_moves,
+      fingerprint,
+      review_status,
+      seed_source_id
       )
       VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6, $7, $8)
       RETURNING id
@@ -499,7 +519,7 @@ export async function createOrReportLock(
       JSON.stringify(chest.links),
       JSON.stringify(chest.solutionMoves),
       chest.fingerprint,
-      source === 'seed' ? 'approved' : 'pending',
+      reviewStatus,
       identity.seedSourceId ?? null,
     ],
   )
@@ -516,7 +536,7 @@ export async function createOrReportLock(
   await upsertName({
     lockId,
     name: chest.name,
-    status: source === 'seed' ? 'approved' : 'pending',
+    status: nameStatus,
     source,
     visitorHash: identity.visitorHash,
   })
