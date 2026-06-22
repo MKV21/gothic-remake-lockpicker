@@ -99,3 +99,9 @@ test('auto-solve submissions without links are skipped before database writes', 
 
   assert.deepEqual(result, { duplicate: false, skipped: true })
 })
+
+test('admin import approval clears the staged import item', async () => {
+  const service = await readFile(path.join(rootDir, 'api/_lib/importService.ts'), 'utf8')
+  assert.match(service, /export async function approveAdminImportItem[\s\S]*createOrReportLock/)
+  assert.match(service, /export async function approveAdminImportItem[\s\S]*DELETE FROM import_items/)
+})

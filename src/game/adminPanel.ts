@@ -569,7 +569,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
 
   async function approveImport(item: AdminImportItemRecord): Promise<void> {
     try {
-      await adminRequest<{ item: AdminImportItemRecord }>(
+      await adminRequest<{ ok: true }>(
         '/api/admin/imports',
         {
           method: 'PATCH',

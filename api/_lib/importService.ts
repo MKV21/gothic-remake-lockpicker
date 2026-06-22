@@ -306,7 +306,7 @@ async function getImportItemForAdmin(id: string): Promise<ImportItemRow> {
   return row
 }
 
-export async function approveAdminImportItem(id: string): Promise<AdminImportItemRecord> {
+export async function approveAdminImportItem(id: string): Promise<void> {
   const item = await getImportItemForAdmin(id)
   if (item.status !== 'pending') throw new ApiError(409, 'Only pending import items can be approved')
   if (item.is_conflict) {
@@ -316,7 +316,7 @@ export async function approveAdminImportItem(id: string): Promise<AdminImportIte
   const chest = jsonValue<NormalizedChest | null>(item.normalized_chest, null)
   if (!chest) throw new ApiError(400, 'Import item has no valid lock data')
 
-  const result = await createOrReportLock(chest as ChestRecord, {
+  await createOrReportLock(chest as ChestRecord, {
     visitorHash: item.visitor_hash ?? undefined,
     ipHash: item.ip_hash ?? undefined,
     source: IMPORT_SOURCE_XETOXYC,
@@ -324,17 +324,14 @@ export async function approveAdminImportItem(id: string): Promise<AdminImportIte
     nameStatus: 'approved',
   })
 
-  const approvedLockId = result.lock?.id ?? item.duplicate_lock_id
   await query(
     `
-      UPDATE import_items
-      SET status = 'approved', approved_lock_id = $2, updated_at = now()
+      DELETE FROM import_items
       WHERE id = $1
     `,
-    [id, approvedLockId],
+    [id],
   )
   await refreshBatchCounts(item.batch_id)
-  return rowToImportItem(await getImportItemForAdmin(id))
 }
 
 export async function rejectAdminImportItem(id: string): Promise<AdminImportItemRecord> {

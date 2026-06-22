@@ -284,6 +284,7 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
           </li>
           <li>${t('importStepPasteHere')}</li>
         </ol>
+        <p class="import-alt">${t('importApplicationHint')}</p>
         <textarea
           id="xetoxyc-import-json"
           class="import-textarea"

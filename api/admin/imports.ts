@@ -45,7 +45,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     }
 
     if (body.status === 'approved') {
-      sendJson(res, 200, { item: await approveAdminImportItem(body.id) })
+      await approveAdminImportItem(body.id)
+      sendJson(res, 200, { ok: true })
       return
     }
     if (body.status === 'rejected') {

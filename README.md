@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.4.8`: Added Application localStorage import hint; approving imports clears them from the import queue.
 - `0.4.7`: More tolerant Xetoxyc import parsing, import rate limit disabled, import delete fixed.
 - `0.4.6`: Import spacing, import instructions, AI-assisted development disclaimer.
 - `0.4.5`: Paste-JSON import for Xetoxyc local saves with Admin approval.
