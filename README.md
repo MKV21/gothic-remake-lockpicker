@@ -21,6 +21,9 @@ and keyboard/controller output profiles.
 This is the running change list for this fork. Add new user-visible fork
 changes here as they land.
 
+- `0.4.2`
+  - Changed the Admin table approval icon colors: green means already approved,
+    yellow means approval is still needed.
 - `0.4.1`
   - Added Admin table identity hints using first-report IP and visitor hashes.
   - Made Admin table rows clickable, added inline approve buttons, and changed

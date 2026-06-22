@@ -250,6 +250,7 @@ function renderLockList(
           ${locks
             .map((lock) => {
               const score = maxNameScore(lock)
+              const isApproved = lock.reviewStatus === 'approved'
               return `
                 <tr
                   class="${lock.id === selectedLockId ? 'admin-lock-row admin-lock-row--selected' : 'admin-lock-row'}"
@@ -260,11 +261,11 @@ function renderLockList(
                   <td>
                     <button
                       type="button"
-                      class="admin-table-approve"
+                      class="admin-table-approve ${isApproved ? 'admin-table-approve--approved' : 'admin-table-approve--pending'}"
                       data-id="${escapeHtml(lock.id)}"
-                      title="${escapeHtml(t('approve'))}"
-                      aria-label="${escapeHtml(`${t('approve')}: ${lock.displayName}`)}"
-                      ${lock.reviewStatus === 'approved' ? 'disabled' : ''}
+                      title="${escapeHtml(isApproved ? t('approved') : t('approve'))}"
+                      aria-label="${escapeHtml(`${isApproved ? t('approved') : t('approve')}: ${lock.displayName}`)}"
+                      ${isApproved ? 'disabled' : ''}
                     >&#10003;</button>
                   </td>
                   <td>
