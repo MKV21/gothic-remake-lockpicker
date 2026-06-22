@@ -14,7 +14,7 @@ import { renderSolution, solutionViewHint, type SolutionView } from './game/solu
 import { clampGateCount, createGameState, MIN_MATCH_PIN_COUNT, resetGameState } from './game/types'
 import { getLanguage, languageLabel, setLanguage, t, type Language } from './i18n'
 
-const APP_VERSION = '0.3.8'
+const APP_VERSION = '0.3.9'
 const state = createGameState()
 let cachedSolutionMoves: SolveMove[] | undefined
 let cachedSolutionResult: ReturnType<typeof solveLock> | undefined
@@ -48,8 +48,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         ${t('appVersion')} v${APP_VERSION} · ${t('attributionBasedOn')}
         <a href="https://xetoxyc.github.io/gothic-remake-lockpicker/" target="_blank" rel="noreferrer">Xetoxyc's web solver</a>
         (<a href="https://github.com/Xetoxyc/gothic-remake-lockpicker" target="_blank" rel="noreferrer">${t('attributionSource')}</a>) ·
-        <a href="https://github.com/MKV21/gothic-remake-lockpicker" target="_blank" rel="noreferrer">${t('attributionFork')}</a> ·
-        <a href="?admin=1">${t('admin')}</a>
+        <a href="https://github.com/MKV21/gothic-remake-lockpicker" target="_blank" rel="noreferrer">${t('attributionFork')}</a>
       </p>
     </header>
 

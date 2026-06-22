@@ -21,6 +21,9 @@ and keyboard/controller output profiles.
 This is the running change list for this fork. Add new user-visible fork
 changes here as they land.
 
+- `0.3.9`
+  - Removed the visible Admin link from the public solver header.
+  - Added a plan for moving Admin moderation into a dedicated page.
 - `0.3.8`
   - Added Admin metadata for link count, created timestamp, and updated timestamp.
   - Skipped automatic database submissions for solved locks without configured
@@ -108,6 +111,8 @@ matching, duplicate handling, source attribution, and name quality workflows.
 
 - [Image pin detection](docs/image-pin-detection.md): browser-local detection of
   gate count and start pins from screenshots or smartphone photos.
+- [Dedicated Admin page](docs/admin-page-plan.md): full-width moderation view with
+  better filtering, sorting, and structured editing.
 
 ## Deployment
 
