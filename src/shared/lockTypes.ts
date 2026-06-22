@@ -39,6 +39,8 @@ export type RemoteLockRecord = {
   displayName: string
   reviewStatus: ReviewStatus
   names: LockNameRecord[]
+  createdAt: string
+  updatedAt: string
 }
 
 export type LockMatchRecord = {

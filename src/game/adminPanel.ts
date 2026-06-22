@@ -1,5 +1,6 @@
 import type { ChestRecord, RemoteLockRecord, ReviewStatus } from '../shared/lockTypes'
-import { t } from '../i18n'
+import { getLanguage, t } from '../i18n'
+import { countSetLinks } from '../shared/lockValidation'
 
 type AdminLockPayload = ChestRecord & {
   reviewStatus: ReviewStatus
@@ -61,11 +62,21 @@ function maxNameScore(lock: RemoteLockRecord): number {
   return scores.length === 0 ? -Infinity : Math.max(...scores)
 }
 
+function formatTimestamp(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(getLanguage(), {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(date)
+}
+
 function lockSummary(lock: RemoteLockRecord): string {
   const score = maxNameScore(lock)
   const scoreLabel = Number.isFinite(score) ? String(score) : t('noActiveNames')
   const hidden = Number.isFinite(score) && score <= -5 ? ` · ${t('hiddenPublic')}` : ''
-  return `${lock.gateCount} ${t('gates')} · ${lock.reviewStatus} · ${t('score')} ${scoreLabel}${hidden}`
+  const linkCount = countSetLinks(lock.links, lock.gateCount)
+  return `${lock.gateCount} ${t('gates')} · ${linkCount} ${t('linksSet')} · ${lock.reviewStatus} · ${t('score')} ${scoreLabel}${hidden}`
 }
 
 function setStatus(container: HTMLElement, message: string, isError = false): void {
@@ -88,6 +99,9 @@ function renderEditor(container: HTMLElement, lock: RemoteLockRecord | undefined
     <div class="admin-editor-header">
       <h3>${t('editChest')}</h3>
       <span>${escapeHtml(lock.id)}</span>
+      <span>${countSetLinks(lock.links, lock.gateCount)} ${t('linksSet')}</span>
+      <span>${t('created')}: ${escapeHtml(formatTimestamp(lock.createdAt))}</span>
+      <span>${t('updated')}: ${escapeHtml(formatTimestamp(lock.updatedAt))}</span>
     </div>
     <textarea id="admin-lock-json" class="admin-json" spellcheck="false">${escapeHtml(
       JSON.stringify(lockToPayload(lock), null, 2),
@@ -126,6 +140,7 @@ function renderLockList(
             <strong>${escapeHtml(lock.displayName)}</strong>
             <span>${escapeHtml(lockSummary(lock))}</span>
             <span>${t('pins')} ${lock.initialPins.join(', ')}</span>
+            <span>${t('created')}: ${escapeHtml(formatTimestamp(lock.createdAt))}</span>
           </button>
         </li>
       `,

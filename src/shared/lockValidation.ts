@@ -100,6 +100,22 @@ export function normalizeLinks(links: LinkType[][] | undefined, gateCount: numbe
   )
 }
 
+export function countSetLinks(links: LinkType[][] | undefined, gateCount?: number): number {
+  if (!Array.isArray(links)) return 0
+
+  const rowCount = gateCount ?? links.length
+  let count = 0
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+    const row = links[rowIndex]
+    if (!Array.isArray(row)) continue
+    const columnCount = gateCount ?? row.length
+    for (let columnIndex = 0; columnIndex < columnCount; columnIndex++) {
+      if (row[columnIndex] === 'same' || row[columnIndex] === 'opposite') count++
+    }
+  }
+  return count
+}
+
 function normalizeMoves(moves: SolveMove[] | undefined, gateCount: number): SolveMove[] {
   if (!Array.isArray(moves)) return []
 

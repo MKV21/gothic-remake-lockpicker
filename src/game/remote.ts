@@ -5,6 +5,7 @@ export type SubmitLockResult = {
   lock?: RemoteLockRecord
   duplicate: boolean
   hidden?: boolean
+  skipped?: boolean
 }
 
 export type VoteRemoteNameResult = {

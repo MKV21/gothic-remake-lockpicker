@@ -13,7 +13,7 @@ import { t } from '../i18n'
 import type { SolveMove } from './solver'
 import type { GameState } from './types'
 import type { LockMatchRecord, RemoteLockRecord } from '../shared/lockTypes'
-import { chestFromRemoteLock } from '../shared/lockValidation'
+import { chestFromRemoteLock, countSetLinks } from '../shared/lockValidation'
 
 type ChestPanelOptions = {
   state: GameState
@@ -67,11 +67,20 @@ export async function submitSolvedChestFromPanel(
   solutionMoves: SolveMove[],
 ): Promise<void> {
   const name = getChestName(container) || 'Unnamed lock'
+  const chest = gameStateToChest(name, state, solutionMoves)
+  if (countSetLinks(chest.links, chest.gateCount) === 0) {
+    setStatus(container, t('autoSubmitSkippedNoLinks'))
+    return
+  }
 
   try {
-    const result = await submitLock(gameStateToChest(name, state, solutionMoves), {
+    const result = await submitLock(chest, {
       submissionKind: 'auto-solve',
     })
+    if (result.skipped) {
+      setStatus(container, t('autoSubmitSkippedNoLinks'))
+      return
+    }
     setStatus(
       container,
       result.duplicate

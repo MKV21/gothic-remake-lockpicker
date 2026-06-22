@@ -1,0 +1,56 @@
+name: Database backup
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pg-dump:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+      BACKUP_S3_PREFIX: ${{ vars.BACKUP_S3_PREFIX || 'gothic-lockpick-database' }}
+      BACKUP_S3_ENDPOINT_URL: ${{ secrets.BACKUP_S3_ENDPOINT_URL }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION || 'eu-central-1' }}
+    steps:
+      - name: Check backup configuration
+        id: config
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$BACKUP_S3_BUCKET" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "Database backup is not configured. Add DATABASE_URL, BACKUP_S3_BUCKET, BACKUP_S3_ACCESS_KEY_ID, and BACKUP_S3_SECRET_ACCESS_KEY."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create compressed pg_dump
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          mkdir -p backup
+          timestamp="$(date -u +'%Y%m%dT%H%M%SZ')"
+          filename="gothic-lockpick-database-${timestamp}.dump"
+          docker run --rm \
+            -e DATABASE_URL \
+            -e BACKUP_FILENAME="$filename" \
+            -v "$PWD/backup:/backup" \
+            postgres:17-alpine \
+            sh -c 'pg_dump "$DATABASE_URL" --format=custom --no-owner --no-acl --file="/backup/${BACKUP_FILENAME}"'
+          gzip "backup/${filename}"
+          echo "BACKUP_FILE=backup/${filename}.gz" >> "$GITHUB_ENV"
+
+      - name: Upload backup to private bucket
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          destination="s3://${BACKUP_S3_BUCKET}/${BACKUP_S3_PREFIX}/$(basename "$BACKUP_FILE")"
+          if [ -n "$BACKUP_S3_ENDPOINT_URL" ]; then
+            aws s3 cp "$BACKUP_FILE" "$destination" --endpoint-url "$BACKUP_S3_ENDPOINT_URL"
+          else
+            aws s3 cp "$BACKUP_FILE" "$destination"
+          fi

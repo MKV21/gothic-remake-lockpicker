@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   HIDDEN_LOCK_SCORE_THRESHOLD,
+  createOrReportLock,
   findMatches,
   isReviewStatus,
   isLockPubliclyVisible,
@@ -25,6 +26,8 @@ function lockWithScore(score: number): RemoteLockRecord {
     fingerprint: '5:1,2,3,4,5',
     displayName: 'Test',
     reviewStatus: 'approved',
+    createdAt: '2026-06-22T10:00:00.000Z',
+    updatedAt: '2026-06-22T10:00:00.000Z',
     names: [
       {
         id: 'name-1',
@@ -68,4 +71,24 @@ test('admin approve patch is status-only', () => {
 
 test('database matching waits for at least three pins', async () => {
   assert.deepEqual(await findMatches('6', '1,2'), [])
+})
+
+test('auto-solve submissions without links are skipped before database writes', async () => {
+  const result = await createOrReportLock(
+    {
+      name: 'Auto solve without links',
+      gateCount: 4,
+      initialPins: [1, 2, 3, 4],
+      solutionPins: [4, 4, 4, 4],
+      links: [
+        ['none', 'none', 'none', 'none'],
+        ['none', 'none', 'none', 'none'],
+        ['none', 'none', 'none', 'none'],
+        ['none', 'none', 'none', 'none'],
+      ],
+    },
+    { source: 'auto-solve', visitorHash: 'visitor-1' },
+  )
+
+  assert.deepEqual(result, { duplicate: false, skipped: true })
 })

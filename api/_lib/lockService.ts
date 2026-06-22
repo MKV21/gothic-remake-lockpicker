@@ -1,6 +1,7 @@
 import type { ChestRecord, LinkType, LockMatchRecord, LockNameRecord, RemoteLockRecord, ReviewStatus, SolveMove } from '../../src/shared/lockTypes.js'
 import {
   CARD_COUNT,
+  countSetLinks,
   createFingerprint,
   isSameCanonicalData,
   matchPins,
@@ -24,6 +25,8 @@ type LockRow = {
   solution_moves: unknown
   fingerprint: string
   review_status: ReviewStatus
+  created_at: string
+  updated_at: string
   names: unknown
 }
 
@@ -43,6 +46,7 @@ export type LockMutationResult = {
   lock?: RemoteLockRecord
   duplicate: boolean
   hidden?: boolean
+  skipped?: boolean
 }
 
 export type NameVoteResult = {
@@ -102,6 +106,8 @@ function rowToLock(row: LockRow): RemoteLockRecord {
     solutionMoves: jsonValue<SolveMove[]>(row.solution_moves, []),
     fingerprint: row.fingerprint,
     reviewStatus: row.review_status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
     names,
     displayName: '',
   }
@@ -391,6 +397,9 @@ export async function createOrReportLock(
 ): Promise<LockMutationResult> {
   const chest = normalizeIncomingLock(payload)
   const source = identity.source ?? 'anonymous'
+  if (source === 'auto-solve' && countSetLinks(chest.links, chest.gateCount) === 0) {
+    return { duplicate: false, skipped: true }
+  }
   const includeHidden = source === 'seed' || source === 'admin'
   const existing = await getLockRowByFingerprint(chest.fingerprint)
 

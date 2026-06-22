@@ -21,6 +21,11 @@ and keyboard/controller output profiles.
 This is the running change list for this fork. Add new user-visible fork
 changes here as they land.
 
+- `0.3.8`
+  - Added Admin metadata for link count, created timestamp, and updated timestamp.
+  - Skipped automatic database submissions for solved locks without configured
+    links.
+  - Added a daily private-bucket database backup workflow and setup docs.
 - `0.3.7`
   - Delayed database matching until at least the first three start pins are set.
 - `0.3.6`
@@ -184,6 +189,11 @@ npm run build
 ```
 
 Before release, also smoke-test a Vercel preview with a real `DATABASE_URL`.
+
+## Backups
+
+Daily `pg_dump` backups can be sent to a private S3-compatible bucket via GitHub
+Actions. See [docs/database-backups.md](docs/database-backups.md).
 
 ## Project Layout
 

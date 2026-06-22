@@ -8,6 +8,7 @@ import type { GameState } from '../src/game/types'
 import type { NormalizedChest } from '../src/shared/lockValidation'
 import {
   CARD_COUNT,
+  countSetLinks,
   createFingerprint,
   isSameCanonicalData,
   matchPins,
@@ -79,6 +80,18 @@ test('canonical duplicate comparison ignores name and solution moves', () => {
   assert.equal(second.ok, true)
   if (!first.ok || !second.ok) return
   assert.equal(isSameCanonicalData(first.chest, second.chest), true)
+})
+
+test('counts only active same and opposite links', () => {
+  assert.equal(countSetLinks([
+    ['none', 'same', 'opposite'],
+    ['none', 'none', 'same'],
+    ['opposite', 'none', 'none'],
+  ], 2), 1)
+  assert.equal(countSetLinks([
+    ['none', 'same'],
+    ['opposite', 'none'],
+  ]), 2)
 })
 
 test('solver still reproduces copied seed solution lengths', async () => {
