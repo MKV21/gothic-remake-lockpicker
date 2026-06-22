@@ -21,6 +21,8 @@ and keyboard/controller output profiles.
 This is the running change list for this fork. Add new user-visible fork
 changes here as they land.
 
+- `0.3.10`
+  - Shortened the Admin link-count label to `X Links`.
 - `0.3.9`
   - Removed the visible Admin link from the public solver header.
   - Added a plan for moving Admin moderation into a dedicated page.
