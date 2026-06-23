@@ -41,6 +41,15 @@ function lockWithScore(score: number): RemoteLockRecord {
   }
 }
 
+function lockWithoutNames(reviewStatus: RemoteLockRecord['reviewStatus'] = 'pending'): RemoteLockRecord {
+  return {
+    ...lockWithScore(0),
+    displayName: 'Unnamed lock',
+    reviewStatus,
+    names: [],
+  }
+}
+
 test('public lock visibility hides chests at -5 votes', () => {
   assert.equal(HIDDEN_LOCK_SCORE_THRESHOLD, -5)
   assert.equal(isLockPubliclyVisible(lockWithScore(-4)), true)
@@ -51,6 +60,15 @@ test('public lock visibility hides rejected locks', () => {
   const lock = lockWithScore(10)
   lock.reviewStatus = 'rejected'
   assert.equal(isLockPubliclyVisible(lock), false)
+})
+
+test('public lock visibility allows nameless pending auto-solve locks', async () => {
+  const service = await readFile(path.join(rootDir, 'api/_lib/lockService.ts'), 'utf8')
+
+  assert.equal(isLockPubliclyVisible(lockWithoutNames()), true)
+  assert.equal(isLockPubliclyVisible(lockWithoutNames('rejected')), false)
+  assert.match(service, /'Unnamed lock'/)
+  assert.match(service, /\.map\(rowToLock\)\s*\.filter\(isLockPubliclyVisible\)\s*\.map\(toPublicLock\)/s)
 })
 
 test('schema enforces one vote per visitor and name', async () => {

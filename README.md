@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.4.15`: Nameless auto-solve locks are suggested as `Unnamed lock` matches.
 - `0.4.14`: Auto-solve placeholder names no longer create pending name suggestions.
 - `0.4.13`: Admin lock details now show name suggestions with approve/reject controls.
 - `0.4.12`: Explicit Save now promotes prior same-visitor auto-solve submissions to manual.

@@ -109,7 +109,7 @@ function displayNameFor(lock: { fingerprint: string; names: LockNameRecord[] }):
   return (
     lock.names.find((name) => name.status === 'approved')?.name ??
     lock.names.find((name) => name.status === 'pending')?.name ??
-    `Lock ${lock.fingerprint}`
+    'Unnamed lock'
   )
 }
 
@@ -120,6 +120,7 @@ export function isSubmittableLockName(name: string): boolean {
 
 export function isLockPubliclyVisible(lock: RemoteLockRecord): boolean {
   if (lock.reviewStatus === 'rejected') return false
+  if (lock.names.length === 0) return true
 
   const activeNameScores = lock.names
     .filter((name) => name.status !== 'rejected')
@@ -453,11 +454,10 @@ export async function getLock(
   const lock = rowToLock(row)
   if (options.includeHidden) return lock
 
-  const publicLock = toPublicLock(lock)
-  if (!isLockPubliclyVisible(publicLock)) {
+  if (!isLockPubliclyVisible(lock)) {
     throw new ApiError(404, 'Lock not found')
   }
-  return publicLock
+  return toPublicLock(lock)
 }
 
 async function publicMutationResult(
@@ -509,7 +509,7 @@ export async function createOrReportLock(
       (await hasPriorAutoSolveReport(existing.id, identity.visitorHash))
     const canAttachName =
       hasSubmittableName &&
-      (includeHidden || isManualSubmission || isLockPubliclyVisible(toPublicLock(existingLock)))
+      (includeHidden || isManualSubmission || isLockPubliclyVisible(existingLock))
     const shouldUpdateAutoSolve =
       existing.review_status === 'pending' &&
       hasPriorAutoSolve &&
@@ -659,8 +659,8 @@ export async function findMatches(gateCountValue: string | undefined, pinsValue:
 
   return result.rows
     .map(rowToLock)
-    .map(toPublicLock)
     .filter(isLockPubliclyVisible)
+    .map(toPublicLock)
     .filter((lock) => matchPins(lock.initialPins, pins))
     .map((lock) => ({
       id: lock.id,
