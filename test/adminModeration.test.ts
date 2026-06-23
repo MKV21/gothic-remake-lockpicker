@@ -88,6 +88,16 @@ test('admin approve patch is status-only', () => {
   assert.equal(isStatusOnlyAdminLockPatch(null), false)
 })
 
+test('admin lock approval auto-approves a single pending active name', async () => {
+  const service = await readFile(path.join(rootDir, 'api/_lib/lockService.ts'), 'utf8')
+
+  assert.match(service, /export async function setAdminLockReviewStatus/)
+  assert.match(service, /if \(reviewStatus === 'approved'\)/)
+  assert.match(service, /UPDATE lock_names\s+SET status = 'approved'/s)
+  assert.match(service, /AND status = 'pending'/)
+  assert.match(service, /COUNT\(\*\)::integer[\s\S]*status <> 'rejected'[\s\S]*\) = 1/)
+})
+
 test('admin lock list includes first report identity metadata', async () => {
   const service = await readFile(path.join(rootDir, 'api/_lib/lockService.ts'), 'utf8')
   assert.match(service, /first_report\.ip_hash AS first_report_ip_hash/)

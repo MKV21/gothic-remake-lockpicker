@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.4.17`: Approving a lock also approves its only pending active name.
 - `0.4.16`: UI labels distinguish matched pins from name vote scores.
 - `0.4.15`: Nameless auto-solve locks are suggested as `Unnamed lock` matches.
 - `0.4.14`: Auto-solve placeholder names no longer create pending name suggestions.

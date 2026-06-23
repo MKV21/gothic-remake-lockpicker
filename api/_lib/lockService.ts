@@ -897,6 +897,25 @@ export async function setAdminLockReviewStatus(
   )
 
   if (result.rows.length === 0) throw new ApiError(404, 'Lock not found')
+
+  if (reviewStatus === 'approved') {
+    await query(
+      `
+        UPDATE lock_names
+        SET status = 'approved', updated_at = now()
+        WHERE lock_id = $1
+          AND status = 'pending'
+          AND (
+            SELECT COUNT(*)::integer
+            FROM lock_names
+            WHERE lock_id = $1
+              AND status <> 'rejected'
+          ) = 1
+      `,
+      [id],
+    )
+  }
+
   return getLock(id, { includeHidden: true })
 }
 
