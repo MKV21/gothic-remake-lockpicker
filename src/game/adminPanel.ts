@@ -172,9 +172,9 @@ function importIdentityTitle(item: AdminImportItemRecord): string {
   ].join('\n')
 }
 
-function entryCountLabel(visibleCount: number, totalCount: number): string {
-  if (visibleCount === totalCount) return `${t('entryCount')}: ${totalCount}`
-  return `${t('entryCount')}: ${visibleCount} / ${totalCount}`
+function entryCountValue(visibleCount: number, totalCount: number): number | string {
+  if (visibleCount === totalCount) return totalCount
+  return `${formatNumber(visibleCount)} / ${formatNumber(totalCount)}`
 }
 
 function formatNumber(value: number): string {
@@ -190,17 +190,22 @@ function formatDay(value: string): string {
   }).format(date)
 }
 
-function renderMetric(label: string, value: number, detail?: string): string {
+function renderMetric(label: string, value: number | string, detail?: string): string {
+  const formattedValue = typeof value === 'number' ? formatNumber(value) : value
   return `
     <div class="admin-stat-card">
       <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(formatNumber(value))}</strong>
+      <strong>${escapeHtml(formattedValue)}</strong>
       ${detail ? `<small>${escapeHtml(detail)}</small>` : ''}
     </div>
   `
 }
 
-function renderStats(container: HTMLElement, stats: UsageStatsRecord | undefined): void {
+function renderStats(
+  container: HTMLElement,
+  stats: UsageStatsRecord | undefined,
+  entryCounts: { visible: number; total: number } = { visible: 0, total: 0 },
+): void {
   const target = container.querySelector<HTMLElement>('#admin-stats')
   if (!target) return
 
@@ -211,6 +216,7 @@ function renderStats(container: HTMLElement, stats: UsageStatsRecord | undefined
 
   target.innerHTML = `
     <div class="admin-stat-grid">
+      ${renderMetric(t('entryCount'), entryCountValue(entryCounts.visible, entryCounts.total))}
       ${renderMetric(
         t('pageViews'),
         stats.totals.pageViews,
@@ -821,6 +827,14 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     return visibleLocks
   }
 
+  const renderUsageStats = (visibleLocks = layout === 'page' ? filterAndSortLocks(locks, filters) : locks): void => {
+    if (layout !== 'page') return
+    renderStats(container, usageStats, {
+      visible: visibleLocks.length,
+      total: locks.length,
+    })
+  }
+
   const renderFilteredLocks = (): void => {
     const visibleLocks = renderLocks()
     if (layout !== 'page') return
@@ -829,7 +843,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
       renderLocks()
       renderEditor(container, selectedLock)
     }
-    setStatus(container, entryCountLabel(visibleLocks.length, locks.length))
+    renderUsageStats(visibleLocks)
   }
 
   const renderImports = (): void => {
@@ -929,7 +943,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
       }
       renderLocks()
       renderEditor(container, selectedLock)
-      setStatus(container, entryCountLabel(visibleLocks.length, locks.length))
+      renderUsageStats(visibleLocks)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('failedLoad')
       setStatus(
@@ -961,7 +975,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     try {
       const body = await adminRequest<{ stats: UsageStatsRecord }>('/api/admin/reports')
       usageStats = body.stats
-      renderStats(container, usageStats)
+      renderUsageStats()
     } catch (error) {
       const message = error instanceof Error ? error.message : t('failedLoad')
       setStatus(
@@ -973,7 +987,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
   }
 
   if (layout === 'page') {
-    renderStats(container, usageStats)
+    renderUsageStats()
 
     container.querySelector<HTMLInputElement>('#admin-filter-query')?.addEventListener('input', (event) => {
       filters = { ...filters, query: (event.target as HTMLInputElement).value }
@@ -1029,7 +1043,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     if (input) input.value = ''
     renderLocks()
     renderImports()
-    renderStats(container, usageStats)
+    renderUsageStats()
     renderEditor(container, undefined)
     setStatus(container, t('lockSessionClosed'))
   })

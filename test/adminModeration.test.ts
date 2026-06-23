@@ -175,6 +175,14 @@ test('UI distinguishes match score from name vote score', async () => {
   assert.match(i18n, /sortScore: 'Niedrigste Namensvotes'/)
 })
 
+test('admin entry count is rendered as first statistics card', async () => {
+  const panel = await readFile(path.join(rootDir, 'src/game/adminPanel.ts'), 'utf8')
+
+  assert.match(panel, /renderMetric\(t\('entryCount'\), entryCountValue/)
+  assert.match(panel, /renderStats\(container, usageStats, \{\s*visible: visibleLocks\.length,\s*total: locks\.length/s)
+  assert.doesNotMatch(panel, /setStatus\(container, entryCount/)
+})
+
 test('auto-solve placeholder names are not treated as name suggestions', async () => {
   const panel = await readFile(path.join(rootDir, 'src/game/chestPanel.ts'), 'utf8')
   const migration = await readFile(
