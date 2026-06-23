@@ -298,7 +298,7 @@ function lockSummary(lock: RemoteLockRecord): string {
   const score = maxNameScore(lock)
   const scoreLabel = Number.isFinite(score) ? String(score) : t('noActiveNames')
   const hidden = Number.isFinite(score) && score <= -5 ? ` · ${t('hiddenPublic')}` : ''
-  return `${lock.gateCount} ${t('gates')} · ${setLinkCount(lock)} ${t('linksSet')} · ${statusLabel(lock.reviewStatus)} · ${t('score')} ${scoreLabel}${hidden}`
+  return `${lock.gateCount} ${t('gates')} · ${setLinkCount(lock)} ${t('linksSet')} · ${statusLabel(lock.reviewStatus)} · ${t('nameVotes')} ${scoreLabel}${hidden}`
 }
 
 function filterAndSortLocks<T extends RemoteLockRecord>(locks: T[], filters: AdminFilters): T[] {
@@ -381,7 +381,7 @@ function renderEditor(container: HTMLElement, lock: RemoteLockRecord | undefined
                     <th>${t('actions')}</th>
                     <th>${t('name')}</th>
                     <th>${t('reviewStatus')}</th>
-                    <th>${t('score')}</th>
+                    <th>${t('nameVotes')}</th>
                     <th>${t('source')}</th>
                   </tr>
                 </thead>
@@ -484,7 +484,7 @@ function renderLockList(
             <th>${t('pins')}</th>
             <th>${t('linksSet')}</th>
             <th>${t('names')}</th>
-            <th>${t('score')}</th>
+            <th>${t('nameVotes')}</th>
             <th>${t('created')}</th>
             <th>${t('updated')}</th>
           </tr>

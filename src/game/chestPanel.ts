@@ -140,6 +140,10 @@ function renderNameList(container: HTMLElement, lock: RemoteLockRecord, revealed
 
 function renderRemoteMatchItem(match: LockMatchRecord, revealed: boolean): string {
   const title = revealed ? match.displayName : t('hiddenName')
+  const nameScores = match.names
+    .filter((name) => name.status !== 'rejected')
+    .map((name) => name.score)
+  const nameScoreLabel = nameScores.length === 0 ? '-' : String(Math.max(...nameScores))
 
   return `
     <li class="remote-match-item">
@@ -148,7 +152,7 @@ function renderRemoteMatchItem(match: LockMatchRecord, revealed: boolean): strin
           <strong>${escapeHtml(title)}</strong>
           ${revealed ? '' : renderEyeButton(match.id)}
         </div>
-        <span>${match.gateCount} ${t('gates')} · ${t('pins')} ${match.initialPins.join(', ')} · ${t('score')} ${match.score}</span>
+        <span>${match.gateCount} ${t('gates')} · ${t('pins')} ${match.initialPins.join(', ')} · ${t('matchedPins')} ${match.score} · ${t('nameVotes')} ${nameScoreLabel}</span>
       </div>
       <button type="button" class="chest-btn remote-load" data-id="${match.id}">${t('load')}</button>
     </li>

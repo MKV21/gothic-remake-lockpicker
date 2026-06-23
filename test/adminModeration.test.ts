@@ -150,6 +150,21 @@ test('admin UI exposes lock name moderation controls', async () => {
   assert.match(i18n, /openModeration: 'Offene Moderation'/)
 })
 
+test('UI distinguishes match score from name vote score', async () => {
+  const adminPanel = await readFile(path.join(rootDir, 'src/game/adminPanel.ts'), 'utf8')
+  const chestPanel = await readFile(path.join(rootDir, 'src/game/chestPanel.ts'), 'utf8')
+  const i18n = await readFile(path.join(rootDir, 'src/i18n.ts'), 'utf8')
+
+  assert.match(adminPanel, /t\('nameVotes'\)/)
+  assert.match(chestPanel, /t\('matchedPins'\)/)
+  assert.match(chestPanel, /t\('nameVotes'\)/)
+  assert.match(chestPanel, /nameScoreLabel/)
+  assert.doesNotMatch(chestPanel, /t\('score'\)\s*\}\s*\$\{match\.score/)
+  assert.match(i18n, /matchedPins: 'Passende Pins'/)
+  assert.match(i18n, /nameVotes: 'Namensvotes'/)
+  assert.match(i18n, /sortScore: 'Niedrigste Namensvotes'/)
+})
+
 test('auto-solve placeholder names are not treated as name suggestions', async () => {
   const panel = await readFile(path.join(rootDir, 'src/game/chestPanel.ts'), 'utf8')
   const migration = await readFile(
