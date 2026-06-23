@@ -116,3 +116,17 @@ test('manual saves promote prior auto-solve submissions from the same visitor', 
   assert.match(service, /promotedFromAutoSolve/)
   assert.match(service, /source === 'manual' \|\| source === 'anonymous'/)
 })
+
+test('admin UI exposes lock name moderation controls', async () => {
+  const panel = await readFile(path.join(rootDir, 'src/game/adminPanel.ts'), 'utf8')
+  const i18n = await readFile(path.join(rootDir, 'src/i18n.ts'), 'utf8')
+
+  assert.match(panel, /class="admin-name-section"/)
+  assert.match(panel, /class="admin-table-action admin-name-action/)
+  assert.match(panel, /\/api\/admin\/names/)
+  assert.match(panel, /data-status="approved"/)
+  assert.match(panel, /data-status="rejected"/)
+  assert.match(panel, /nameCountLabel\(lock\)/)
+  assert.match(panel, /t\('openModeration'\)/)
+  assert.match(i18n, /openModeration: 'Offene Moderation'/)
+})

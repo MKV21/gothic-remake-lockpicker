@@ -1488,33 +1488,37 @@ ul {
 }
 
 .admin-col-name {
-  width: 19%;
+  width: 17%;
 }
 
 .admin-col-status {
-  width: 10%;
+  width: 9%;
 }
 
 .admin-col-ip {
-  width: 12%;
+  width: 11%;
 }
 
 .admin-col-gates {
-  width: 6%;
+  width: 5%;
 }
 
 .admin-col-pins {
-  width: 13%;
+  width: 12%;
 }
 
 .admin-col-links,
 .admin-col-score {
-  width: 6%;
+  width: 5%;
+}
+
+.admin-col-name-status {
+  width: 8%;
 }
 
 .admin-col-created,
 .admin-col-updated {
-  width: 10%;
+  width: 9%;
 }
 
 .admin-lock-table th,
@@ -1648,6 +1652,28 @@ ul {
 
 .admin-panel--page .admin-editor-header {
   margin-top: 0;
+}
+
+.admin-name-section {
+  margin: 0.625rem 0 0.75rem;
+}
+
+.admin-name-table-wrap {
+  max-height: 14rem;
+  overflow: auto;
+  scrollbar-color: var(--accent) rgba(0, 0, 0, 0.18);
+  scrollbar-width: thin;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.admin-name-table {
+  min-width: 30rem;
+}
+
+.admin-name-row--pending td {
+  background: rgba(155, 122, 47, 0.08);
 }
 
 .admin-panel--page .admin-json {

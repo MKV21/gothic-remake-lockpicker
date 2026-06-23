@@ -113,6 +113,18 @@ function maxNameScore(lock: RemoteLockRecord): number {
   return scores.length === 0 ? -Infinity : Math.max(...scores)
 }
 
+function pendingNameCount(lock: RemoteLockRecord): number {
+  return lock.names.filter((name) => name.status === 'pending').length
+}
+
+function nameCountLabel(lock: RemoteLockRecord): string {
+  const pending = pendingNameCount(lock)
+  const total = lock.names.length
+  if (total === 0) return '-'
+  if (pending === 0) return String(total)
+  return `${pending} ${t('pending')} / ${total}`
+}
+
 function formatTimestamp(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
@@ -209,9 +221,9 @@ function renderStats(container: HTMLElement, stats: UsageStatsRecord | undefined
       ${renderMetric(t('lockLoads'), stats.totals.lockLoads, `${t('last7d')}: ${formatNumber(stats.recent.lockLoads7d)}`)}
       ${renderMetric(t('lockSubmissions'), stats.totals.lockSubmissions, `${t('last7d')}: ${formatNumber(stats.recent.lockSubmissions7d)}`)}
       ${renderMetric(
-        t('pendingApprovals'),
+        t('openModeration'),
         stats.totals.pendingLocks + stats.totals.pendingImports + stats.totals.pendingNames,
-        `${t('chests')}: ${formatNumber(stats.totals.pendingLocks)} · ${t('imports')}: ${formatNumber(stats.totals.pendingImports)} · ${t('nameSuggestions')}: ${formatNumber(stats.totals.pendingNames)}`,
+        `${t('pendingChests')}: ${formatNumber(stats.totals.pendingLocks)} · ${t('imports')}: ${formatNumber(stats.totals.pendingImports)} · ${t('pendingNames')}: ${formatNumber(stats.totals.pendingNames)}`,
       )}
       ${renderMetric(t('imports'), stats.totals.importBatches, `${t('importItems')}: ${formatNumber(stats.totals.importItems)}`)}
     </div>
@@ -354,6 +366,65 @@ function renderEditor(container: HTMLElement, lock: RemoteLockRecord | undefined
       <span>${t('created')}: ${escapeHtml(formatTimestamp(lock.createdAt))}</span>
       <span>${t('updated')}: ${escapeHtml(formatTimestamp(lock.updatedAt))}</span>
     </div>
+    <section class="admin-name-section">
+      <div class="admin-section-header">
+        <h3>${t('nameSuggestions')}</h3>
+        <span>${pendingNameCount(lock)} ${t('pending')}</span>
+      </div>
+      ${
+        lock.names.length === 0
+          ? `<p class="chest-empty">${t('noNamesProposed')}</p>`
+          : `<div class="admin-name-table-wrap">
+              <table class="admin-lock-table admin-name-table">
+                <thead>
+                  <tr>
+                    <th>${t('actions')}</th>
+                    <th>${t('name')}</th>
+                    <th>${t('reviewStatus')}</th>
+                    <th>${t('score')}</th>
+                    <th>${t('source')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${lock.names
+                    .map(
+                      (name) => `
+                        <tr class="${name.status === 'pending' ? 'admin-name-row admin-name-row--pending' : 'admin-name-row'}">
+                          <td>
+                            <div class="admin-table-actions">
+                              <button
+                                type="button"
+                                class="admin-table-action admin-name-action admin-table-approve ${name.status === 'approved' ? 'admin-table-approve--approved' : 'admin-table-approve--pending'}"
+                                data-name-id="${escapeHtml(name.id)}"
+                                data-status="approved"
+                                title="${escapeHtml(t('approveName'))}"
+                                aria-label="${escapeHtml(`${t('approveName')}: ${name.name}`)}"
+                                ${name.status === 'approved' ? 'disabled' : ''}
+                              >&#10003;</button>
+                              <button
+                                type="button"
+                                class="admin-table-action admin-name-action admin-table-delete"
+                                data-name-id="${escapeHtml(name.id)}"
+                                data-status="rejected"
+                                title="${escapeHtml(t('rejectName'))}"
+                                aria-label="${escapeHtml(`${t('rejectName')}: ${name.name}`)}"
+                                ${name.status === 'rejected' ? 'disabled' : ''}
+                              >&#215;</button>
+                            </div>
+                          </td>
+                          <td><span class="admin-table-name">${escapeHtml(name.name)}</span></td>
+                          <td>${escapeHtml(statusLabel(name.status))}</td>
+                          <td>${name.score}</td>
+                          <td>${escapeHtml(name.source ?? '-')}</td>
+                        </tr>
+                      `,
+                    )
+                    .join('')}
+                </tbody>
+              </table>
+            </div>`
+      }
+    </section>
     <textarea id="admin-lock-json" class="admin-json" spellcheck="false">${escapeHtml(
       JSON.stringify(lockToPayload(lock), null, 2),
     )}</textarea>
@@ -398,6 +469,7 @@ function renderLockList(
           <col class="admin-col-gates" />
           <col class="admin-col-pins" />
           <col class="admin-col-links" />
+          <col class="admin-col-name-status" />
           <col class="admin-col-score" />
           <col class="admin-col-created" />
           <col class="admin-col-updated" />
@@ -411,6 +483,7 @@ function renderLockList(
             <th>${t('gates')}</th>
             <th>${t('pins')}</th>
             <th>${t('linksSet')}</th>
+            <th>${t('names')}</th>
             <th>${t('score')}</th>
             <th>${t('created')}</th>
             <th>${t('updated')}</th>
@@ -459,6 +532,7 @@ function renderLockList(
                   <td>${lock.gateCount}</td>
                   <td>${escapeHtml(lock.initialPins.join(', '))}</td>
                   <td>${setLinkCount(lock)}</td>
+                  <td>${escapeHtml(nameCountLabel(lock))}</td>
                   <td>${Number.isFinite(score) ? score : '-'}</td>
                   <td>${escapeHtml(formatTimestamp(lock.createdAt))}</td>
                   <td>${escapeHtml(formatTimestamp(lock.updatedAt))}</td>
@@ -721,6 +795,22 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     }
   }
 
+  async function setLockNameStatus(nameId: string, status: ReviewStatus): Promise<void> {
+    try {
+      const body = await adminRequest<{ lock: RemoteLockRecord }>(
+        '/api/admin/names',
+        {
+          method: 'POST',
+          body: JSON.stringify({ nameId, status }),
+        },
+      )
+      await Promise.all([loadLocks(body.lock.id), loadStats()])
+      setStatus(container, `${t('nameStatusUpdated')}: "${body.lock.displayName}"`)
+    } catch (error) {
+      setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
+    }
+  }
+
   const renderLocks = (): AdminLockRecord[] => {
     const visibleLocks = layout === 'page' ? filterAndSortLocks(locks, filters) : locks
     renderLockList(container, visibleLocks, (lock) => {
@@ -946,6 +1036,15 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
 
   container.addEventListener('click', async (event) => {
     const target = event.target as HTMLElement
+    const nameAction = target.closest<HTMLButtonElement>('.admin-name-action')
+    if (nameAction) {
+      const nameId = nameAction.dataset.nameId
+      const status = nameAction.dataset.status
+      if (nameId && (status === 'approved' || status === 'pending' || status === 'rejected')) {
+        await setLockNameStatus(nameId, status)
+      }
+      return
+    }
 
     if (target.id === 'admin-approve-lock') {
       if (!selectedLock) return
