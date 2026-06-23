@@ -128,10 +128,13 @@ function normalizeMoves(moves: SolveMove[] | undefined, gateCount: number): Solv
   )
 }
 
-export function normalizeChestRecord(chest: ChestRecord): ValidationResult {
+export function normalizeChestRecord(
+  chest: ChestRecord,
+  options: { requireName?: boolean } = {},
+): ValidationResult {
   const gateCount = clampGateCount(chest.gateCount ?? chest.initialPins?.length ?? DEFAULT_GATE_COUNT)
   const name = normalizeName(chest.name)
-  if (!name) return { ok: false, error: 'Name is required' }
+  if ((options.requireName ?? true) && !name) return { ok: false, error: 'Name is required' }
 
   const initial = normalizePins(chest.initialPins, gateCount, 'initialPins')
   if (!initial.ok) return initial

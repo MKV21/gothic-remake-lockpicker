@@ -54,6 +54,23 @@ test('normalizes chests and creates stable fingerprints', () => {
   assert.equal(createFingerprint(result.chest.gateCount, result.chest.initialPins), result.chest.fingerprint)
 })
 
+test('keeps names required unless explicitly disabled', () => {
+  const unnamed = {
+    name: '',
+    gateCount: 4,
+    initialPins: [1, 2, 3, 4],
+    solutionPins: [4, 4, 4, 4],
+  }
+
+  const required = normalizeChestRecord(unnamed)
+  const optional = normalizeChestRecord(unnamed, { requireName: false })
+
+  assert.deepEqual(required, { ok: false, error: 'Name is required' })
+  assert.equal(optional.ok, true)
+  if (!optional.ok) return
+  assert.equal(optional.chest.name, '')
+})
+
 test('matches only the entered start-pin prefix', () => {
   assert.equal(matchPins([7, 1, 2, 3, 6], [7]), true)
   assert.equal(matchPins([7, 1, 2, 3, 6], [7, 1, 2]), true)

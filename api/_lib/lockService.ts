@@ -113,6 +113,11 @@ function displayNameFor(lock: { fingerprint: string; names: LockNameRecord[] }):
   )
 }
 
+export function isSubmittableLockName(name: string): boolean {
+  const normalizedName = normalizeName(name)
+  return normalizedName !== '' && normalizeNameKey(normalizedName) !== 'unnamed lock'
+}
+
 export function isLockPubliclyVisible(lock: RemoteLockRecord): boolean {
   if (lock.reviewStatus === 'rejected') return false
 
@@ -206,8 +211,11 @@ function chestToGameState(chest: NormalizedChest): GameState {
   }
 }
 
-export function normalizeIncomingLock(chest: ChestRecord): NormalizedChest {
-  const result = normalizeChestRecord(chest)
+export function normalizeIncomingLock(
+  chest: ChestRecord,
+  options: { requireName?: boolean } = {},
+): NormalizedChest {
+  const result = normalizeChestRecord(chest, options)
   if (!result.ok) throw new ApiError(400, result.error)
 
   if (result.chest.solutionMoves.length > 0) return result.chest
@@ -482,11 +490,12 @@ export async function createOrReportLock(
     nameStatus?: 'approved' | 'pending'
   } = {},
 ): Promise<LockMutationResult> {
-  const chest = normalizeIncomingLock(payload)
   const source = identity.source ?? 'anonymous'
+  const chest = normalizeIncomingLock(payload, { requireName: source !== 'auto-solve' })
   const isManualSubmission = source === 'manual' || source === 'anonymous'
   const reviewStatus = identity.reviewStatus ?? (source === 'seed' ? 'approved' : 'pending')
   const nameStatus = identity.nameStatus ?? (source === 'seed' ? 'approved' : 'pending')
+  const hasSubmittableName = isSubmittableLockName(chest.name)
   if (source === 'auto-solve' && countSetLinks(chest.links, chest.gateCount) === 0) {
     return { duplicate: false, skipped: true }
   }
@@ -498,7 +507,9 @@ export async function createOrReportLock(
     const hasPriorAutoSolve =
       existing.review_status === 'pending' &&
       (await hasPriorAutoSolveReport(existing.id, identity.visitorHash))
-    const canAttachName = includeHidden || isLockPubliclyVisible(toPublicLock(existingLock))
+    const canAttachName =
+      hasSubmittableName &&
+      (includeHidden || isManualSubmission || isLockPubliclyVisible(toPublicLock(existingLock)))
     const shouldUpdateAutoSolve =
       existing.review_status === 'pending' &&
       hasPriorAutoSolve &&
@@ -545,7 +556,7 @@ export async function createOrReportLock(
       source,
       isConflict: !isSameCanonicalData(chest, normalizedFromRow(existing)),
     })
-    if (canAttachName || promotedFromAutoSolve) {
+    if (canAttachName || (hasSubmittableName && promotedFromAutoSolve)) {
       await upsertName({
         lockId: existing.id,
         name: chest.name,
@@ -594,13 +605,15 @@ export async function createOrReportLock(
     source,
     isConflict: false,
   })
-  await upsertName({
-    lockId,
-    name: chest.name,
-    status: nameStatus,
-    source,
-    visitorHash: identity.visitorHash,
-  })
+  if (hasSubmittableName) {
+    await upsertName({
+      lockId,
+      name: chest.name,
+      status: nameStatus,
+      source,
+      visitorHash: identity.visitorHash,
+    })
+  }
 
   return publicMutationResult(lockId, false, includeHidden)
 }

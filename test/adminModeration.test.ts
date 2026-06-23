@@ -9,6 +9,7 @@ import {
   findMatches,
   isReviewStatus,
   isLockPubliclyVisible,
+  isSubmittableLockName,
   isStatusOnlyAdminLockPatch,
 } from '../api/_lib/lockService'
 import type { RemoteLockRecord } from '../src/shared/lockTypes'
@@ -129,4 +130,21 @@ test('admin UI exposes lock name moderation controls', async () => {
   assert.match(panel, /nameCountLabel\(lock\)/)
   assert.match(panel, /t\('openModeration'\)/)
   assert.match(i18n, /openModeration: 'Offene Moderation'/)
+})
+
+test('auto-solve placeholder names are not treated as name suggestions', async () => {
+  const panel = await readFile(path.join(rootDir, 'src/game/chestPanel.ts'), 'utf8')
+  const migration = await readFile(
+    path.join(rootDir, 'db/migrations/004_drop_auto_solve_unnamed_lock_names.sql'),
+    'utf8',
+  )
+
+  assert.equal(isSubmittableLockName(''), false)
+  assert.equal(isSubmittableLockName('   '), false)
+  assert.equal(isSubmittableLockName('Unnamed lock'), false)
+  assert.equal(isSubmittableLockName('Old Camp chest'), true)
+  assert.doesNotMatch(panel, /\|\| 'Unnamed lock'/)
+  assert.match(migration, /DELETE FROM lock_names/)
+  assert.match(migration, /source = 'auto-solve'/)
+  assert.match(migration, /normalized_name = 'unnamed lock'/)
 })

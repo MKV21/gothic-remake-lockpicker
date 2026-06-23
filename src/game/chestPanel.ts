@@ -74,7 +74,7 @@ export async function submitSolvedChestFromPanel(
   state: GameState,
   solutionMoves: SolveMove[],
 ): Promise<void> {
-  const name = getChestName(container) || 'Unnamed lock'
+  const name = getChestName(container)
   const chest = gameStateToChest(name, state, solutionMoves)
   if (countSetLinks(chest.links, chest.gateCount) === 0) {
     setStatus(container, t('autoSubmitSkippedNoLinks'))
