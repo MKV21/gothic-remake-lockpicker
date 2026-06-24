@@ -146,6 +146,20 @@ test('manual saves promote prior auto-solve submissions from the same visitor', 
   assert.match(service, /source === 'manual' \|\| source === 'anonymous'/)
 })
 
+test('auto-solve edits reuse the same visitor draft by start pins', async () => {
+  const service = await readFile(path.join(rootDir, 'api/_lib/lockService.ts'), 'utf8')
+
+  assert.match(service, /getEditableAutoSolveLockRow/)
+  assert.match(service, /l\.initial_pins = \$2::jsonb/)
+  assert.match(service, /r\.source = 'auto-solve'/)
+  assert.match(service, /r\.visitor_hash = \$3/)
+  assert.match(service, /const existing = exactExisting \?\? editableAutoSolve/)
+  assert.match(service, /rejectSupersededAutoSolveDraft\(editableAutoSolve\.id\)/)
+  assert.match(service, /fingerprint = \$5/)
+  assert.match(service, /fingerprint = \$8/)
+  assert.match(service, /isConflict: shouldUpdateAutoSolve \? false/)
+})
+
 test('admin UI exposes lock name moderation controls', async () => {
   const panel = await readFile(path.join(rootDir, 'src/game/adminPanel.ts'), 'utf8')
   const i18n = await readFile(path.join(rootDir, 'src/i18n.ts'), 'utf8')

@@ -298,6 +298,69 @@ async function getLockRowByFingerprint(fingerprint: string): Promise<LockRow | u
   return result.rows[0]
 }
 
+async function getEditableAutoSolveLockRow(
+  chest: NormalizedChest,
+  visitorHash: string | undefined,
+  ipHash: string | undefined,
+): Promise<LockRow | undefined> {
+  if (!visitorHash && !ipHash) return undefined
+
+  const result = await query<LockRow>(
+    `
+      WITH candidate_locks AS (
+        SELECT
+          l.id,
+          MAX(r.created_at) AS last_auto_solve_at
+        FROM locks l
+        JOIN lock_reports r ON r.lock_id = l.id
+        WHERE l.review_status = 'pending'
+          AND l.gate_count = $1
+          AND l.initial_pins = $2::jsonb
+          AND r.source = 'auto-solve'
+          AND (
+            ($3::text IS NOT NULL AND r.visitor_hash = $3)
+            OR ($3::text IS NULL AND $4::text IS NOT NULL AND r.ip_hash = $4)
+          )
+        GROUP BY l.id
+        ORDER BY last_auto_solve_at DESC
+        LIMIT 1
+      )
+      SELECT
+        l.*,
+        COALESCE(
+          jsonb_agg(
+            jsonb_build_object(
+              'id', n.id,
+              'name', n.name,
+              'score', n.score,
+              'status', n.status,
+              'source', n.source
+            )
+            ORDER BY
+              CASE n.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+              ${nameSourcePrioritySql('n')},
+              n.score DESC,
+              n.created_at ASC
+          ) FILTER (WHERE n.id IS NOT NULL),
+          '[]'::jsonb
+        ) AS names
+      FROM candidate_locks c
+      JOIN locks l ON l.id = c.id
+      LEFT JOIN lock_names n ON n.lock_id = l.id
+      GROUP BY l.id, c.last_auto_solve_at
+      ORDER BY c.last_auto_solve_at DESC
+    `,
+    [
+      chest.gateCount,
+      JSON.stringify(chest.initialPins),
+      visitorHash ?? null,
+      ipHash ?? null,
+    ],
+  )
+
+  return result.rows[0]
+}
+
 async function upsertName(options: {
   lockId: string
   name: string
@@ -407,7 +470,8 @@ async function promotePriorAutoSolveReports(
         submitted_name = $4,
         solution_pins = $5::jsonb,
         links = $6::jsonb,
-        solution_moves = $7::jsonb
+        solution_moves = $7::jsonb,
+        fingerprint = $8
       WHERE lock_id = $1
         AND visitor_hash = $2
         AND source = 'auto-solve'
@@ -421,6 +485,7 @@ async function promotePriorAutoSolveReports(
       JSON.stringify(chest.solutionPins),
       JSON.stringify(chest.links),
       JSON.stringify(chest.solutionMoves),
+      chest.fingerprint,
     ],
   )
 
@@ -435,6 +500,7 @@ async function updateLockCanonicalData(lockId: string, chest: NormalizedChest): 
         solution_pins = $2::jsonb,
         links = $3::jsonb,
         solution_moves = $4::jsonb,
+        fingerprint = $5,
         updated_at = now()
       WHERE id = $1
     `,
@@ -443,7 +509,20 @@ async function updateLockCanonicalData(lockId: string, chest: NormalizedChest): 
       JSON.stringify(chest.solutionPins),
       JSON.stringify(chest.links),
       JSON.stringify(chest.solutionMoves),
+      chest.fingerprint,
     ],
+  )
+}
+
+async function rejectSupersededAutoSolveDraft(lockId: string): Promise<void> {
+  await query(
+    `
+      UPDATE locks
+      SET review_status = 'rejected', updated_at = now()
+      WHERE id = $1
+        AND review_status = 'pending'
+    `,
+    [lockId],
   )
 }
 
@@ -502,10 +581,19 @@ export async function createOrReportLock(
     return { duplicate: false, skipped: true }
   }
   const includeHidden = source === 'seed' || source === 'admin' || reviewStatus === 'approved'
-  const existing = await getLockRowByFingerprint(chest.fingerprint)
+  const editableAutoSolve =
+    source === 'auto-solve' || isManualSubmission
+      ? await getEditableAutoSolveLockRow(chest, identity.visitorHash, identity.ipHash)
+      : undefined
+  const exactExisting = await getLockRowByFingerprint(chest.fingerprint)
+  if (exactExisting && editableAutoSolve && editableAutoSolve.id !== exactExisting.id) {
+    await rejectSupersededAutoSolveDraft(editableAutoSolve.id)
+  }
+  const existing = exactExisting ?? editableAutoSolve
 
   if (existing) {
     const existingLock = rowToLock(existing)
+    const isEditingAutoSolveDraft = editableAutoSolve?.id === existing.id
     const hasPriorAutoSolve =
       existing.review_status === 'pending' &&
       (await hasPriorAutoSolveReport(existing.id, identity.visitorHash))
@@ -514,7 +602,7 @@ export async function createOrReportLock(
       (includeHidden || isManualSubmission || isLockPubliclyVisible(existingLock))
     const shouldUpdateAutoSolve =
       existing.review_status === 'pending' &&
-      hasPriorAutoSolve &&
+      (hasPriorAutoSolve || isEditingAutoSolveDraft) &&
       (source === 'auto-solve' || isManualSubmission)
     const promotedFromAutoSolve =
       isManualSubmission &&
@@ -556,7 +644,7 @@ export async function createOrReportLock(
       visitorHash: identity.visitorHash,
       ipHash: identity.ipHash,
       source,
-      isConflict: !isSameCanonicalData(chest, normalizedFromRow(existing)),
+      isConflict: shouldUpdateAutoSolve ? false : !isSameCanonicalData(chest, normalizedFromRow(existing)),
     })
     if (canAttachName || (hasSubmittableName && promotedFromAutoSolve)) {
       await upsertName({
