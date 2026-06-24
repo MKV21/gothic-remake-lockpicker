@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.4.22`: Admin usage stats use an even 50:50 table layout.
 - `0.4.21`: Admin usage stats give the daily usage table more horizontal space.
 - `0.4.20`: Admin lock-load statistics no longer expose canonical fingerprints for unnamed locks.
 - `0.4.19`: Locks with the same start pins but different links/solutions are stored and matched separately.
