@@ -139,9 +139,14 @@ function normalizeMoves(moves: SolveMove[] | undefined, gateCount: number): Solv
 
 export function normalizeChestRecord(
   chest: ChestRecord,
-  options: { requireName?: boolean } = {},
+  options: { requireName?: boolean; clampGateCount?: boolean } = {},
 ): ValidationResult {
-  const gateCount = clampGateCount(chest.gateCount ?? chest.initialPins?.length ?? DEFAULT_GATE_COUNT)
+  const gateCountValue = chest.gateCount ?? chest.initialPins?.length ?? DEFAULT_GATE_COUNT
+  const gateCount = options.clampGateCount ? clampGateCount(gateCountValue) : gateCountValue
+  if (!Number.isInteger(gateCount) || gateCount < MIN_GATE_COUNT || gateCount > MAX_GATE_COUNT) {
+    return { ok: false, error: `gateCount must be between ${MIN_GATE_COUNT} and ${MAX_GATE_COUNT}` }
+  }
+
   const name = normalizeName(chest.name)
   if ((options.requireName ?? true) && !name) return { ok: false, error: 'Name is required' }
 

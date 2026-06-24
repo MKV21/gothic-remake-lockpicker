@@ -154,7 +154,7 @@ function renderRemoteMatchItem(match: LockMatchRecord, revealed: boolean): strin
         </div>
         <span>${match.gateCount} ${t('gates')} · ${t('pins')} ${match.initialPins.join(', ')} · ${t('matchedPins')} ${match.score} · ${t('nameVotes')} ${nameScoreLabel}</span>
       </div>
-      <button type="button" class="chest-btn remote-load" data-id="${match.id}">${t('load')}</button>
+      <button type="button" class="chest-btn remote-load" data-id="${match.id}">${t('loadDatabaseMatch')}</button>
     </li>
   `
 }
@@ -271,7 +271,10 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
       </div>
       <p class="chest-status" aria-live="polite"></p>
       <section class="remote-panel" aria-label="${t('databaseMatches')}">
-        <h3>${t('databaseMatches')}</h3>
+        <h3>
+          <span>${t('databaseMatches')}</span>
+          <span id="remote-match-count" class="remote-match-count" hidden></span>
+        </h3>
         <p class="remote-status" aria-live="polite">${t('sharedDatabasePrompt')}</p>
         <ul id="remote-match-list" class="remote-match-list"></ul>
         <div id="remote-lock-details"></div>
@@ -387,9 +390,23 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
   return {
     renderRemoteMatches(matches, message) {
       const list = container.querySelector<HTMLUListElement>('#remote-match-list')
+      const panel = container.querySelector<HTMLElement>('.remote-panel')
+      const count = container.querySelector<HTMLElement>('#remote-match-count')
       if (!list) return
 
-      setRemoteStatus(container, message ?? `${matches.length} ${t('databaseMatches')}`)
+      panel?.classList.toggle('remote-panel--has-matches', matches.length > 0)
+      if (count) {
+        count.hidden = matches.length === 0
+        count.textContent = String(matches.length)
+      }
+      setRemoteStatus(
+        container,
+        message ?? (
+          matches.length > 0
+            ? `${matches.length} ${t('databaseMatchesFound')}`
+            : `${matches.length} ${t('databaseMatches')}`
+        ),
+      )
 
       if (matches.length === 0) {
         list.innerHTML = `<li class="chest-empty">${t('noDatabaseMatches')}</li>`
@@ -418,7 +435,14 @@ export function mountChestPanel(container: HTMLElement, options: ChestPanelOptio
     },
     clearRemoteMatches(message = t('sharedDatabasePrompt')) {
       const list = container.querySelector<HTMLUListElement>('#remote-match-list')
+      const panel = container.querySelector<HTMLElement>('.remote-panel')
+      const count = container.querySelector<HTMLElement>('#remote-match-count')
       if (list) list.innerHTML = ''
+      panel?.classList.remove('remote-panel--has-matches')
+      if (count) {
+        count.hidden = true
+        count.textContent = ''
+      }
       setRemoteStatus(container, message)
     },
   }

@@ -4,6 +4,13 @@ const { Pool } = pg
 
 let pool: pg.Pool | undefined
 
+export type QueryExecutor = <T extends pg.QueryResultRow>(
+  text: string,
+  params?: unknown[],
+) => Promise<pg.QueryResult<T>>
+
+let queryExecutorForTests: QueryExecutor | undefined
+
 export class ApiError extends Error {
   statusCode: number
 
@@ -47,5 +54,10 @@ export async function query<T extends pg.QueryResultRow>(
   text: string,
   params: unknown[] = [],
 ): Promise<pg.QueryResult<T>> {
+  if (queryExecutorForTests) return queryExecutorForTests<T>(text, params)
   return getPool().query<T>(text, params)
+}
+
+export function setQueryExecutorForTests(executor: QueryExecutor | undefined): void {
+  queryExecutorForTests = executor
 }

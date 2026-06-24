@@ -79,6 +79,36 @@ test('keeps names required unless explicitly disabled', () => {
   assert.equal(optional.chest.name, '')
 })
 
+test('rejects invalid API gate counts instead of clamping submitted data', () => {
+  const tooLarge = normalizeChestRecord({
+    name: 'Invalid',
+    gateCount: 999,
+    initialPins: [1, 2, 3, 4, 5, 6, 7],
+    solutionPins: [4, 4, 4, 4, 4, 4, 4],
+  })
+  const fractional = normalizeChestRecord({
+    name: 'Invalid',
+    gateCount: 4.5,
+    initialPins: [1, 2, 3, 4],
+    solutionPins: [4, 4, 4, 4],
+  })
+  const uiClamped = normalizeChestRecord(
+    {
+      name: 'UI draft',
+      gateCount: 999,
+      initialPins: [1, 2, 3, 4, 5, 6, 7],
+      solutionPins: [4, 4, 4, 4, 4, 4, 4],
+    },
+    { clampGateCount: true },
+  )
+
+  assert.deepEqual(tooLarge, { ok: false, error: 'gateCount must be between 4 and 7' })
+  assert.deepEqual(fractional, { ok: false, error: 'gateCount must be between 4 and 7' })
+  assert.equal(uiClamped.ok, true)
+  if (!uiClamped.ok) return
+  assert.equal(uiClamped.chest.gateCount, 7)
+})
+
 test('matches only the entered start-pin prefix', () => {
   assert.equal(matchPins([7, 1, 2, 3, 6], [7]), true)
   assert.equal(matchPins([7, 1, 2, 3, 6], [7, 1, 2]), true)

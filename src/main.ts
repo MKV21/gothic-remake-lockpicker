@@ -129,6 +129,11 @@ function renderSolverApp(): void {
             <li><span class="link-legend link-legend--opposite">O</span> ${t('helpLinksOpposite')}</li>
           </ul>
         </div>
+        <div class="help-item">
+          <h3>${t('helpDatabaseTitle')}</h3>
+          <p>${t('helpDatabaseText1')}</p>
+          <p>${t('helpDatabaseText2')}</p>
+        </div>
       </div>
     </details>
 

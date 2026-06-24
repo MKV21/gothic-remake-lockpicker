@@ -317,6 +317,18 @@ async function getEditableAutoSolveLockRow(
           AND l.gate_count = $1
           AND l.initial_pins = $2::jsonb
           AND r.source = 'auto-solve'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM lock_reports other_reports
+            WHERE other_reports.lock_id = l.id
+              AND other_reports.source <> 'auto-solve'
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM lock_names other_names
+            WHERE other_names.lock_id = l.id
+              AND other_names.source <> 'auto-solve'
+          )
           AND (
             ($3::text IS NOT NULL AND r.visitor_hash = $3)
             OR ($3::text IS NULL AND $4::text IS NOT NULL AND r.ip_hash = $4)
@@ -376,7 +388,25 @@ async function upsertName(options: {
       INSERT INTO lock_names (lock_id, name, normalized_name, status, source, visitor_hash)
       VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (lock_id, normalized_name)
-      DO UPDATE SET updated_at = now()
+      DO UPDATE SET
+        name = CASE
+          WHEN EXCLUDED.status = 'approved'
+            OR ${nameSourcePrioritySql('EXCLUDED')} < ${nameSourcePrioritySql('lock_names')}
+            THEN EXCLUDED.name
+          ELSE lock_names.name
+        END,
+        status = CASE
+          WHEN EXCLUDED.status = 'approved' THEN 'approved'
+          ELSE lock_names.status
+        END,
+        source = CASE
+          WHEN EXCLUDED.status = 'approved'
+            OR ${nameSourcePrioritySql('EXCLUDED')} < ${nameSourcePrioritySql('lock_names')}
+            THEN EXCLUDED.source
+          ELSE lock_names.source
+        END,
+        visitor_hash = COALESCE(lock_names.visitor_hash, EXCLUDED.visitor_hash),
+        updated_at = now()
     `,
     [
       options.lockId,
@@ -582,7 +612,7 @@ export async function createOrReportLock(
   }
   const includeHidden = source === 'seed' || source === 'admin' || reviewStatus === 'approved'
   const editableAutoSolve =
-    source === 'auto-solve' || isManualSubmission
+    source === 'auto-solve'
       ? await getEditableAutoSolveLockRow(chest, identity.visitorHash, identity.ipHash)
       : undefined
   const exactExisting = await getLockRowByFingerprint(chest.fingerprint)
@@ -591,7 +621,7 @@ export async function createOrReportLock(
   }
   const existing = exactExisting ?? editableAutoSolve
 
-  if (existing) {
+  const reportExisting = async (existing: LockRow): Promise<LockMutationResult> => {
     const existingLock = rowToLock(existing)
     const isEditingAutoSolveDraft = editableAutoSolve?.id === existing.id
     const hasPriorAutoSolve =
@@ -659,6 +689,10 @@ export async function createOrReportLock(
     return promotedFromAutoSolve ? { ...result, promotedFromAutoSolve } : result
   }
 
+  if (existing) {
+    return reportExisting(existing)
+  }
+
   const result = await query<{ id: string }>(
     `
       INSERT INTO locks (
@@ -672,6 +706,7 @@ export async function createOrReportLock(
       seed_source_id
       )
       VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6, $7, $8)
+      ON CONFLICT (fingerprint) DO NOTHING
       RETURNING id
     `,
     [
@@ -686,7 +721,14 @@ export async function createOrReportLock(
     ],
   )
 
-  const lockId = result.rows[0]!.id
+  const insertedLockId = result.rows[0]?.id
+  if (!insertedLockId) {
+    const racedExisting = await getLockRowByFingerprint(chest.fingerprint)
+    if (racedExisting) return reportExisting(racedExisting)
+    throw new ApiError(409, 'Lock already exists')
+  }
+
+  const lockId = insertedLockId
   await insertReport({
     lockId,
     chest,
@@ -741,10 +783,14 @@ export async function findMatches(gateCountValue: string | undefined, pinsValue:
       LEFT JOIN lock_names n ON n.lock_id = l.id
       WHERE l.gate_count = $1
         AND l.review_status <> 'rejected'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM unnest($2::int[]) WITH ORDINALITY AS entered(pin, ordinal)
+          WHERE (l.initial_pins ->> (entered.ordinal - 1)::integer)::integer IS DISTINCT FROM entered.pin
+        )
       GROUP BY l.id
-      LIMIT 100
     `,
-    [gateCount],
+    [gateCount, pins],
   )
 
   return result.rows

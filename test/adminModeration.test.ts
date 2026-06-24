@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { setQueryExecutorForTests } from '../api/_lib/db'
 import {
   HIDDEN_LOCK_SCORE_THRESHOLD,
   createOrReportLock,
@@ -13,8 +14,63 @@ import {
   isStatusOnlyAdminLockPatch,
 } from '../api/_lib/lockService'
 import type { RemoteLockRecord } from '../src/shared/lockTypes'
+import { createFingerprint } from '../src/shared/lockValidation'
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+
+function queryResult<T>(rows: T[]): any {
+  return {
+    rows,
+    rowCount: rows.length,
+    command: 'SELECT',
+    oid: 0,
+    fields: [],
+  }
+}
+
+function links(gateCount: number): string[][] {
+  return Array.from({ length: gateCount }, () =>
+    Array.from({ length: gateCount }, () => 'none'),
+  )
+}
+
+function lockRow(options: {
+  id: string
+  name: string
+  gateCount?: number
+  initialPins?: number[]
+  solutionPins?: number[]
+  links?: string[][]
+  reviewStatus?: RemoteLockRecord['reviewStatus']
+  source?: string
+}): any {
+  const gateCount = options.gateCount ?? 4
+  const initialPins = options.initialPins ?? [1, 2, 3, 4].slice(0, gateCount)
+  const solutionPins = options.solutionPins ?? [4, 4, 4, 4].slice(0, gateCount)
+  const linkMatrix = options.links ?? links(gateCount)
+
+  return {
+    id: options.id,
+    gate_count: gateCount,
+    initial_pins: initialPins,
+    solution_pins: solutionPins,
+    links: linkMatrix,
+    solution_moves: [{ card: 1, direction: 'left' }],
+    fingerprint: createFingerprint(gateCount, initialPins, solutionPins, linkMatrix as any),
+    review_status: options.reviewStatus ?? 'approved',
+    created_at: '2026-06-22T10:00:00.000Z',
+    updated_at: '2026-06-22T10:00:00.000Z',
+    names: [
+      {
+        id: `${options.id}-name`,
+        name: options.name,
+        score: 0,
+        status: options.reviewStatus === 'rejected' ? 'rejected' : 'approved',
+        source: options.source ?? 'manual',
+      },
+    ],
+  }
+}
 
 function lockWithScore(score: number): RemoteLockRecord {
   return {
@@ -109,6 +165,33 @@ test('database matching waits for at least three pins', async () => {
   assert.deepEqual(await findMatches('6', '1,2'), [])
 })
 
+test('database matching filters the start-pin prefix before result limiting', async () => {
+  const calls: { sql: string; params: unknown[] }[] = []
+  setQueryExecutorForTests(async (sql, params = []) => {
+    calls.push({ sql, params })
+    return queryResult(
+      Array.from({ length: 25 }, (_, index) =>
+        lockRow({
+          id: `match-${String(index).padStart(2, '0')}`,
+          name: `Match ${String(index).padStart(2, '0')}`,
+        }),
+      ),
+    )
+  })
+
+  try {
+    const matches = await findMatches('4', '1,2,3')
+
+    assert.equal(matches.length, 20)
+    assert.deepEqual(calls[0]?.params, [4, [1, 2, 3]])
+    assert.match(calls[0]!.sql, /unnest\(\$2::int\[\]\) WITH ORDINALITY/)
+    assert.match(calls[0]!.sql, /IS DISTINCT FROM entered\.pin/)
+    assert.doesNotMatch(calls[0]!.sql, /LIMIT 100/)
+  } finally {
+    setQueryExecutorForTests(undefined)
+  }
+})
+
 test('auto-solve submissions without links are skipped before database writes', async () => {
   const result = await createOrReportLock(
     {
@@ -146,11 +229,93 @@ test('manual saves promote prior auto-solve submissions from the same visitor', 
   assert.match(service, /source === 'manual' \|\| source === 'anonymous'/)
 })
 
+test('manual saves do not reuse auto-solve drafts by start pins', async () => {
+  const calls: string[] = []
+  const chest = {
+    name: 'Manual Race Chest',
+    gateCount: 4,
+    initialPins: [1, 2, 3, 4],
+    solutionPins: [4, 4, 4, 4],
+    links: links(4) as any,
+    solutionMoves: [{ card: 1, direction: 'left' as const }],
+  }
+  const inserted = lockRow({ id: 'manual-lock', name: chest.name })
+
+  setQueryExecutorForTests(async (sql) => {
+    calls.push(sql)
+    if (/WHERE l\.fingerprint = \$1/.test(sql)) return queryResult([])
+    if (/INSERT INTO locks/.test(sql)) return queryResult([{ id: inserted.id }])
+    if (/INSERT INTO lock_reports/.test(sql)) return queryResult([])
+    if (/INSERT INTO lock_names/.test(sql)) return queryResult([])
+    if (/WHERE l\.id = \$1/.test(sql)) return queryResult([inserted])
+    throw new Error(`Unexpected query: ${sql}`)
+  })
+
+  try {
+    const result = await createOrReportLock(chest, {
+      source: 'manual',
+      visitorHash: 'manual-visitor',
+    })
+
+    assert.equal(result.duplicate, false)
+    assert.equal(result.lock?.id, 'manual-lock')
+    assert.equal(calls.some((sql) => /last_auto_solve_at/.test(sql)), false)
+  } finally {
+    setQueryExecutorForTests(undefined)
+  }
+})
+
+test('concurrent duplicate lock inserts are reported as duplicates', async () => {
+  const calls: string[] = []
+  const chest = {
+    name: 'Concurrent Chest',
+    gateCount: 4,
+    initialPins: [1, 2, 3, 4],
+    solutionPins: [4, 4, 4, 4],
+    links: links(4) as any,
+    solutionMoves: [{ card: 1, direction: 'left' as const }],
+  }
+  const existing = lockRow({ id: 'existing-lock', name: chest.name })
+  let fingerprintLookups = 0
+
+  setQueryExecutorForTests(async (sql) => {
+    calls.push(sql)
+    if (/WHERE l\.fingerprint = \$1/.test(sql)) {
+      fingerprintLookups++
+      return queryResult(fingerprintLookups === 1 ? [] : [existing])
+    }
+    if (/INSERT INTO locks/.test(sql)) return queryResult([])
+    if (/SELECT EXISTS/.test(sql)) return queryResult([{ exists: false }])
+    if (/INSERT INTO lock_reports/.test(sql)) return queryResult([])
+    if (/INSERT INTO lock_names/.test(sql)) return queryResult([])
+    if (/WHERE l\.id = \$1/.test(sql)) return queryResult([existing])
+    throw new Error(`Unexpected query: ${sql}`)
+  })
+
+  try {
+    const result = await createOrReportLock(chest, {
+      source: 'manual',
+      visitorHash: 'race-visitor',
+    })
+
+    assert.equal(result.duplicate, true)
+    assert.equal(result.lock?.id, 'existing-lock')
+    assert.equal(calls.some((sql) => /ON CONFLICT \(fingerprint\) DO NOTHING/.test(sql)), true)
+    assert.equal(calls.some((sql) => /INSERT INTO lock_reports/.test(sql)), true)
+  } finally {
+    setQueryExecutorForTests(undefined)
+  }
+})
+
 test('auto-solve edits reuse the same visitor draft by start pins', async () => {
   const service = await readFile(path.join(rootDir, 'api/_lib/lockService.ts'), 'utf8')
 
   assert.match(service, /getEditableAutoSolveLockRow/)
+  assert.match(service, /source === 'auto-solve'\s*\?\s*await getEditableAutoSolveLockRow/)
+  assert.doesNotMatch(service, /const editableAutoSolve =[\s\S]{0,120}source === 'auto-solve' \|\| isManualSubmission/)
   assert.match(service, /l\.initial_pins = \$2::jsonb/)
+  assert.match(service, /other_reports\.source <> 'auto-solve'/)
+  assert.match(service, /other_names\.source <> 'auto-solve'/)
   assert.match(service, /r\.source = 'auto-solve'/)
   assert.match(service, /r\.visitor_hash = \$3/)
   assert.match(service, /const existing = exactExisting \?\? editableAutoSolve/)
@@ -189,12 +354,40 @@ test('UI distinguishes match score from name vote score', async () => {
   assert.match(i18n, /sortScore: 'Niedrigste Namensvotes'/)
 })
 
+test('public UI explains and highlights database matches', async () => {
+  const main = await readFile(path.join(rootDir, 'src/main.ts'), 'utf8')
+  const panel = await readFile(path.join(rootDir, 'src/game/chestPanel.ts'), 'utf8')
+  const styles = await readFile(path.join(rootDir, 'src/style.css'), 'utf8')
+  const i18n = await readFile(path.join(rootDir, 'src/i18n.ts'), 'utf8')
+
+  assert.match(main, /t\('helpDatabaseTitle'\)/)
+  assert.match(main, /t\('helpDatabaseText1'\)/)
+  assert.match(main, /t\('helpDatabaseText2'\)/)
+  assert.match(panel, /id="remote-match-count"/)
+  assert.match(panel, /remote-panel--has-matches/)
+  assert.match(panel, /t\('databaseMatchesFound'\)/)
+  assert.match(panel, /t\('loadDatabaseMatch'\)/)
+  assert.match(styles, /\.remote-panel--has-matches/)
+  assert.match(i18n, /helpDatabaseTitle: 'Gemeinsame Datenbank'/)
+  assert.match(i18n, /loadDatabaseMatch: 'Treffer laden'/)
+})
+
 test('admin entry count is rendered as first statistics card', async () => {
   const panel = await readFile(path.join(rootDir, 'src/game/adminPanel.ts'), 'utf8')
 
   assert.match(panel, /renderMetric\(t\('entryCount'\), entryCountValue/)
   assert.match(panel, /renderStats\(container, usageStats, \{\s*visible: visibleLocks\.length,\s*total: locks\.length/s)
   assert.doesNotMatch(panel, /setStatus\(container, entryCount/)
+})
+
+test('admin moderation actions refresh statistics', async () => {
+  const panel = await readFile(path.join(rootDir, 'src/game/adminPanel.ts'), 'utf8')
+
+  assert.match(panel, /await Promise\.all\(\[loadLocks\(lock\.id\), loadStats\(\)\]\)/)
+  assert.match(panel, /await Promise\.all\(\[loadLocks\(\), loadStats\(\)\]\)/)
+  assert.match(panel, /await Promise\.all\(\[loadLocks\(\), loadImports\(\), loadStats\(\)\]\)/)
+  assert.match(panel, /await Promise\.all\(\[loadImports\(\), loadStats\(\)\]\)/)
+  assert.match(panel, /await Promise\.all\(\[loadLocks\(body\.lock\.id\), loadStats\(\)\]\)/)
 })
 
 test('canonical fingerprint migration splits conflict reports into separate locks', async () => {
@@ -227,4 +420,14 @@ test('auto-solve placeholder names are not treated as name suggestions', async (
   assert.match(migration, /DELETE FROM lock_names/)
   assert.match(migration, /source = 'auto-solve'/)
   assert.match(migration, /normalized_name = 'unnamed lock'/)
+})
+
+test('name upserts promote higher-trust sources and approved status', async () => {
+  const service = await readFile(path.join(rootDir, 'api/_lib/lockService.ts'), 'utf8')
+
+  assert.match(service, /ON CONFLICT \(lock_id, normalized_name\)/)
+  assert.match(service, /WHEN EXCLUDED\.status = 'approved' THEN 'approved'/)
+  assert.match(service, /nameSourcePrioritySql\('EXCLUDED'\)/)
+  assert.match(service, /nameSourcePrioritySql\('lock_names'\)/)
+  assert.match(service, /visitor_hash = COALESCE\(lock_names\.visitor_hash, EXCLUDED\.visitor_hash\)/)
 })

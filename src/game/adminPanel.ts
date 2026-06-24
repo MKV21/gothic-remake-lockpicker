@@ -739,7 +739,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
           }),
         },
       )
-      await loadLocks(lock.id)
+      await Promise.all([loadLocks(lock.id), loadStats()])
       setStatus(container, `${t('approved')}: "${lock.displayName}"`)
     } catch (error) {
       setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
@@ -759,7 +759,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
         selectedLock = undefined
         renderEditor(container, undefined)
       }
-      await loadLocks()
+      await Promise.all([loadLocks(), loadStats()])
       setStatus(container, t('lockDeleted'))
     } catch (error) {
       setStatus(container, error instanceof Error ? error.message : t('failedDelete'), true)
@@ -775,7 +775,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
           body: JSON.stringify({ id: item.id, status: 'approved' }),
         },
       )
-      await Promise.all([loadLocks(), loadImports()])
+      await Promise.all([loadLocks(), loadImports(), loadStats()])
       setStatus(container, `${t('approved')}: "${item.name ?? item.id}"`)
     } catch (error) {
       setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
@@ -794,7 +794,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
           body: JSON.stringify({ id: item.id }),
         },
       )
-      await loadImports()
+      await Promise.all([loadImports(), loadStats()])
       setStatus(container, `${t('delete')}: "${item.name ?? item.id}"`)
     } catch (error) {
       setStatus(container, error instanceof Error ? error.message : t('failedDelete'), true)
@@ -1077,7 +1077,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
             body: JSON.stringify(payload),
           },
         )
-        await loadLocks(body.lock.id)
+        await Promise.all([loadLocks(body.lock.id), loadStats()])
         renderEditor(container, selectedLock)
         setStatus(container, `${t('lockSaved')}: "${body.lock.displayName}"`)
       } catch (error) {
