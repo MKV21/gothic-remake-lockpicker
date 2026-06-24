@@ -175,14 +175,16 @@ function toPublicLock(lock: RemoteLockRecord): RemoteLockRecord {
 
 function normalizedFromRow(row: LockRow): NormalizedChest {
   const initialPins = jsonValue<number[]>(row.initial_pins, [])
+  const solutionPins = jsonValue<number[]>(row.solution_pins, [])
+  const links = jsonValue<LinkType[][]>(row.links, [])
   return {
     name: displayNameFor({ fingerprint: row.fingerprint, names: jsonValue<LockNameRecord[]>(row.names, []) }),
     gateCount: row.gate_count,
     initialPins,
-    solutionPins: jsonValue<number[]>(row.solution_pins, []),
-    links: jsonValue<LinkType[][]>(row.links, []),
+    solutionPins,
+    links,
     solutionMoves: jsonValue<SolveMove[]>(row.solution_moves, []),
-    fingerprint: createFingerprint(row.gate_count, initialPins),
+    fingerprint: createFingerprint(row.gate_count, initialPins, solutionPins, links),
   }
 }
 

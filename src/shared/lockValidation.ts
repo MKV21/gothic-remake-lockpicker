@@ -50,8 +50,17 @@ export function isPin(value: unknown): value is number {
   return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= HOLE_COUNT
 }
 
-export function createFingerprint(gateCount: number, initialPins: readonly number[]): string {
-  return `${gateCount}:${initialPins.join(',')}`
+export function createFingerprint(
+  gateCount: number,
+  initialPins: readonly number[],
+  solutionPins: readonly number[],
+  links: readonly (readonly LinkType[])[],
+): string {
+  return [
+    `${gateCount}:${JSON.stringify(initialPins)}`,
+    `solution:${JSON.stringify(solutionPins)}`,
+    `links:${JSON.stringify(links)}`,
+  ].join('|')
 }
 
 export function parsePins(value: string): number[] {
@@ -159,7 +168,12 @@ export function normalizeChestRecord(
       solutionPins,
       links: normalizeLinks(chest.links, gateCount),
       solutionMoves: normalizeMoves(chest.solutionMoves, gateCount),
-      fingerprint: createFingerprint(gateCount, initialPins),
+      fingerprint: createFingerprint(
+        gateCount,
+        initialPins,
+        solutionPins,
+        normalizeLinks(chest.links, gateCount),
+      ),
     },
   }
 }

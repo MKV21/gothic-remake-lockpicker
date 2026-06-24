@@ -50,8 +50,16 @@ test('normalizes chests and creates stable fingerprints', () => {
   assert.equal(result.ok, true)
   if (!result.ok) return
   assert.equal(result.chest.name, 'Scatty chest')
-  assert.equal(result.chest.fingerprint, '5:7,1,2,3,6')
-  assert.equal(createFingerprint(result.chest.gateCount, result.chest.initialPins), result.chest.fingerprint)
+  assert.equal(
+    result.chest.fingerprint,
+    createFingerprint(
+      result.chest.gateCount,
+      result.chest.initialPins,
+      result.chest.solutionPins,
+      result.chest.links,
+    ),
+  )
+  assert.match(result.chest.fingerprint, /^5:\[7,1,2,3,6\]\|solution:/)
 })
 
 test('keeps names required unless explicitly disabled', () => {
@@ -97,6 +105,39 @@ test('canonical duplicate comparison ignores name and solution moves', () => {
   assert.equal(second.ok, true)
   if (!first.ok || !second.ok) return
   assert.equal(isSameCanonicalData(first.chest, second.chest), true)
+})
+
+test('fingerprints separate locks with the same start pins but different links', () => {
+  const first = normalizeChestRecord({
+    name: 'One',
+    gateCount: 4,
+    initialPins: [1, 2, 3, 4],
+    solutionPins: [4, 4, 4, 4],
+    links: [
+      ['none', 'none', 'none', 'none'],
+      ['none', 'none', 'none', 'none'],
+      ['none', 'none', 'none', 'none'],
+      ['none', 'none', 'none', 'none'],
+    ],
+  })
+  const second = normalizeChestRecord({
+    name: 'Two',
+    gateCount: 4,
+    initialPins: [1, 2, 3, 4],
+    solutionPins: [4, 4, 4, 4],
+    links: [
+      ['none', 'same', 'none', 'none'],
+      ['none', 'none', 'none', 'none'],
+      ['none', 'none', 'none', 'none'],
+      ['none', 'none', 'none', 'none'],
+    ],
+  })
+
+  assert.equal(first.ok, true)
+  assert.equal(second.ok, true)
+  if (!first.ok || !second.ok) return
+  assert.notEqual(first.chest.fingerprint, second.chest.fingerprint)
+  assert.equal(matchPins(first.chest.initialPins, second.chest.initialPins), true)
 })
 
 test('counts only active same and opposite links', () => {

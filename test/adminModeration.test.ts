@@ -183,6 +183,21 @@ test('admin entry count is rendered as first statistics card', async () => {
   assert.doesNotMatch(panel, /setStatus\(container, entryCount/)
 })
 
+test('canonical fingerprint migration splits conflict reports into separate locks', async () => {
+  const migration = await readFile(
+    path.join(rootDir, 'db/migrations/005_canonical_lock_fingerprints.sql'),
+    'utf8',
+  )
+
+  assert.match(migration, /CREATE OR REPLACE FUNCTION canonical_lock_fingerprint/)
+  assert.match(migration, /WHERE r\.is_conflict = true/)
+  assert.match(migration, /INSERT INTO locks/)
+  assert.match(migration, /UPDATE lock_reports r[\s\S]*is_conflict = false/)
+  assert.match(migration, /INSERT INTO lock_names/)
+  assert.match(migration, /DELETE FROM lock_names/)
+  assert.match(migration, /UPDATE import_items i[\s\S]*is_conflict = false/)
+})
+
 test('auto-solve placeholder names are not treated as name suggestions', async () => {
   const panel = await readFile(path.join(rootDir, 'src/game/chestPanel.ts'), 'utf8')
   const migration = await readFile(
