@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.4.20`: Admin lock-load statistics no longer expose canonical fingerprints for unnamed locks.
 - `0.4.19`: Locks with the same start pins but different links/solutions are stored and matched separately.
 - `0.4.18`: Admin entry count moved into the statistics cards.
 - `0.4.17`: Approving a lock also approves its only pending active name.

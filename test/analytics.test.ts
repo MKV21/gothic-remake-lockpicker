@@ -42,3 +42,10 @@ test('analytics reuses existing Vercel API route budget', async () => {
   assert.match(lockRoute, /safeTrackRequestUsageEvent\('lock_load'/)
   assert.match(reportsRoute, /listAdminUsageStats/)
 })
+
+test('analytics top-lock fallback does not expose canonical fingerprints', async () => {
+  const service = await readFile(path.join(rootDir, 'api/_lib/analyticsService.ts'), 'utf8')
+
+  assert.match(service, /COALESCE\(name_choice\.name, 'Unnamed lock'\) AS display_name/)
+  assert.doesNotMatch(service, /'Lock '\s*\|\|\s*l\.fingerprint/)
+})

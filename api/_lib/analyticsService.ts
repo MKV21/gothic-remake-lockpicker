@@ -220,7 +220,7 @@ export async function listAdminUsageStats(): Promise<UsageStatsRecord> {
         `
           SELECT
             l.id,
-            COALESCE(name_choice.name, 'Lock ' || l.fingerprint) AS display_name,
+            COALESCE(name_choice.name, 'Unnamed lock') AS display_name,
             l.gate_count,
             l.initial_pins,
             l.review_status,
