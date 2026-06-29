@@ -20,6 +20,7 @@ and keyboard/controller output profiles.
 
 Short, user-visible fork changes:
 
+- `0.5.1`: Admin page adds data-quality review candidates for stale auto-solve locks, same start pins, and name conflicts.
 - `0.5.0`: Tightened database matching and duplicate handling, refreshed Admin stats after moderation actions, and made database matches easier to discover and load.
 - `0.4.23`: Auto-solve edits now update the same visitor draft by start pins instead of creating new locks while links are still being entered.
 - `0.4.22`: Admin usage stats use an even 50:50 table layout.

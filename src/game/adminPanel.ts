@@ -1,5 +1,7 @@
 import type {
+  AdminDataQualityRecord,
   AdminImportItemRecord,
+  AdminQualityLockSummary,
   AdminLockRecord,
   ChestRecord,
   ImportItemStatus,
@@ -295,6 +297,206 @@ function renderStats(
             </tbody>
           </table>
         </div>
+      </section>
+    </div>
+  `
+}
+
+function qualityLockMeta(lock: AdminQualityLockSummary): string {
+  const score = lock.maxNameScore === null ? '-' : String(lock.maxNameScore)
+  return [
+    `${lock.gateCount} ${t('gates')}`,
+    `${t('pins')} ${lock.initialPins.join(', ')}`,
+    `${lock.linkCount} ${t('linksSet')}`,
+    `${t('loads')} ${formatNumber(lock.loadCount)}`,
+    `${t('submissions')} ${formatNumber(lock.reportCount)}`,
+    `${t('nameVotes')} ${score}`,
+    lock.reportSources ? `${t('source')}: ${lock.reportSources}` : undefined,
+  ].filter(Boolean).join(' · ')
+}
+
+function renderQualityLockActions(lock: AdminQualityLockSummary): string {
+  return `
+    <div class="admin-table-actions">
+      <button
+        type="button"
+        class="admin-table-action admin-quality-lock-action admin-table-approve ${lock.reviewStatus === 'approved' ? 'admin-table-approve--approved' : 'admin-table-approve--pending'}"
+        data-lock-id="${escapeHtml(lock.id)}"
+        data-status="approved"
+        title="${escapeHtml(t('approve'))}"
+        aria-label="${escapeHtml(`${t('approve')}: ${lock.displayName}`)}"
+        ${lock.reviewStatus === 'approved' ? 'disabled' : ''}
+      >&#10003;</button>
+      <button
+        type="button"
+        class="admin-table-action admin-quality-lock-action admin-table-delete"
+        data-lock-id="${escapeHtml(lock.id)}"
+        data-status="rejected"
+        title="${escapeHtml(t('reject'))}"
+        aria-label="${escapeHtml(`${t('reject')}: ${lock.displayName}`)}"
+        ${lock.reviewStatus === 'rejected' ? 'disabled' : ''}
+      >&#215;</button>
+    </div>
+  `
+}
+
+function renderQualityLockRow(lock: AdminQualityLockSummary): string {
+  return `
+    <li class="admin-quality-lock">
+      ${renderQualityLockActions(lock)}
+      <div>
+        <strong>${escapeHtml(lock.displayName)}</strong>
+        <span>${escapeHtml(qualityLockMeta(lock))}</span>
+      </div>
+    </li>
+  `
+}
+
+function renderDataQuality(
+  container: HTMLElement,
+  quality: AdminDataQualityRecord | undefined,
+): void {
+  const target = container.querySelector<HTMLElement>('#admin-data-quality')
+  if (!target) return
+
+  if (!quality) {
+    target.innerHTML = `<p class="chest-empty">${t('noQualityDataYet')}</p>`
+    return
+  }
+
+  target.innerHTML = `
+    <div class="admin-stat-grid">
+      ${renderMetric(t('lowSignalAutoSolve'), quality.summary.lowSignalAutoSolve, `${t('withSameStartPins')}: ${formatNumber(quality.summary.lowSignalAutoSolveWithSiblings)}`)}
+      ${renderMetric(t('sameStartPins'), quality.summary.startPinGroups, `${t('chests')}: ${formatNumber(quality.summary.locksInStartPinGroups)}`)}
+      ${renderMetric(t('sameNameSamePins'), quality.summary.sameNameSameStartPinGroups)}
+      ${renderMetric(t('multiNameLocks'), quality.summary.multiNameLocks)}
+      ${renderMetric(t('orphanReports'), quality.summary.orphanReports)}
+    </div>
+    <div class="admin-quality-grid">
+      <section class="admin-quality-card">
+        <h4>${t('lowSignalAutoSolve')}</h4>
+        <p>${t('lowSignalAutoSolveHint')}</p>
+        ${
+          quality.lowSignalAutoSolve.length === 0
+            ? `<p class="chest-empty">${t('noQualityIssues')}</p>`
+            : `<ul class="admin-quality-list">
+                ${quality.lowSignalAutoSolve.map(renderQualityLockRow).join('')}
+              </ul>`
+        }
+      </section>
+      <section class="admin-quality-card">
+        <h4>${t('sameStartPins')}</h4>
+        <p>${t('sameStartPinsHint')}</p>
+        ${
+          quality.startPinGroups.length === 0
+            ? `<p class="chest-empty">${t('noQualityIssues')}</p>`
+            : quality.startPinGroups
+              .map((group) => `
+                <article class="admin-quality-group">
+                  <h5>${group.gateCount} ${t('gates')} · ${t('pins')} ${escapeHtml(group.initialPins.join(', '))}</h5>
+                  <small>${formatNumber(group.lockCount)} ${t('chests')} · ${t('loads')} ${formatNumber(group.totalLoadCount)}</small>
+                  <ul class="admin-quality-list">
+                    ${group.locks.map(renderQualityLockRow).join('')}
+                  </ul>
+                </article>
+              `)
+              .join('')
+        }
+      </section>
+      <section class="admin-quality-card">
+        <h4>${t('sameNameSamePins')}</h4>
+        <p>${t('sameNameSamePinsHint')}</p>
+        ${
+          quality.sameNameSameStartPins.length === 0
+            ? `<p class="chest-empty">${t('noQualityIssues')}</p>`
+            : quality.sameNameSameStartPins
+              .map((group) => `
+                <article class="admin-quality-group">
+                  <h5>${escapeHtml(group.exampleName)} · ${group.gateCount} ${t('gates')} · ${t('pins')} ${escapeHtml(group.initialPins.join(', '))}</h5>
+                  <ul class="admin-quality-list">
+                    ${group.names
+                      .map((item) => `
+                        <li class="admin-quality-lock">
+                          <div class="admin-table-actions">
+                            <button
+                              type="button"
+                              class="admin-table-action admin-quality-name-action admin-table-approve ${item.nameStatus === 'approved' ? 'admin-table-approve--approved' : 'admin-table-approve--pending'}"
+                              data-name-id="${escapeHtml(item.nameId)}"
+                              data-status="approved"
+                              title="${escapeHtml(t('approveName'))}"
+                              aria-label="${escapeHtml(`${t('approveName')}: ${item.name}`)}"
+                              ${item.nameStatus === 'approved' ? 'disabled' : ''}
+                            >&#10003;</button>
+                            <button
+                              type="button"
+                              class="admin-table-action admin-quality-name-action admin-table-delete"
+                              data-name-id="${escapeHtml(item.nameId)}"
+                              data-status="rejected"
+                              title="${escapeHtml(t('rejectName'))}"
+                              aria-label="${escapeHtml(`${t('rejectName')}: ${item.name}`)}"
+                              ${item.nameStatus === 'rejected' ? 'disabled' : ''}
+                            >&#215;</button>
+                          </div>
+                          <div>
+                            <strong>${escapeHtml(item.name)}</strong>
+                            <span>${escapeHtml(qualityLockMeta(item))}</span>
+                          </div>
+                        </li>
+                      `)
+                      .join('')}
+                  </ul>
+                </article>
+              `)
+              .join('')
+        }
+      </section>
+      <section class="admin-quality-card">
+        <h4>${t('multiNameLocks')}</h4>
+        <p>${t('multiNameLocksHint')}</p>
+        ${
+          quality.multiNameLocks.length === 0
+            ? `<p class="chest-empty">${t('noQualityIssues')}</p>`
+            : quality.multiNameLocks
+              .map((lock) => `
+                <article class="admin-quality-group">
+                  <h5>${escapeHtml(lock.displayName)}</h5>
+                  <small>${escapeHtml(qualityLockMeta(lock))}</small>
+                  <ul class="admin-quality-list">
+                    ${lock.names
+                      .map((name) => `
+                        <li class="admin-quality-lock">
+                          <div class="admin-table-actions">
+                            <button
+                              type="button"
+                              class="admin-table-action admin-quality-name-action admin-table-approve ${name.status === 'approved' ? 'admin-table-approve--approved' : 'admin-table-approve--pending'}"
+                              data-name-id="${escapeHtml(name.id)}"
+                              data-status="approved"
+                              title="${escapeHtml(t('approveName'))}"
+                              aria-label="${escapeHtml(`${t('approveName')}: ${name.name}`)}"
+                              ${name.status === 'approved' ? 'disabled' : ''}
+                            >&#10003;</button>
+                            <button
+                              type="button"
+                              class="admin-table-action admin-quality-name-action admin-table-delete"
+                              data-name-id="${escapeHtml(name.id)}"
+                              data-status="rejected"
+                              title="${escapeHtml(t('rejectName'))}"
+                              aria-label="${escapeHtml(`${t('rejectName')}: ${name.name}`)}"
+                              ${name.status === 'rejected' ? 'disabled' : ''}
+                            >&#215;</button>
+                          </div>
+                          <div>
+                            <strong>${escapeHtml(name.name)}</strong>
+                            <span>${escapeHtml(`${statusLabel(name.status)} · ${t('nameVotes')} ${name.score} · ${t('source')}: ${name.source ?? '-'}`)}</span>
+                          </div>
+                        </li>
+                      `)
+                      .join('')}
+                  </ul>
+                </article>
+              `)
+              .join('')
+        }
       </section>
     </div>
   `
@@ -720,6 +922,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
   let locks: AdminLockRecord[] = []
   let importItems: AdminImportItemRecord[] = []
   let usageStats: UsageStatsRecord | undefined
+  let dataQuality: AdminDataQualityRecord | undefined
   let selectedLock: AdminLockRecord | undefined
   let filters: AdminFilters = {
     query: '',
@@ -741,6 +944,24 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
       )
       await Promise.all([loadLocks(lock.id), loadStats()])
       setStatus(container, `${t('approved')}: "${lock.displayName}"`)
+    } catch (error) {
+      setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
+    }
+  }
+
+  async function setQualityLockStatus(lockId: string, status: ReviewStatus): Promise<void> {
+    try {
+      const body = await adminRequest<{ lock: RemoteLockRecord }>(
+        `/api/admin/locks/${encodeURIComponent(lockId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            reviewStatus: status,
+          }),
+        },
+      )
+      await Promise.all([loadLocks(body.lock.id), loadStats()])
+      setStatus(container, `${statusLabel(status)}: "${body.lock.displayName}"`)
     } catch (error) {
       setStatus(container, error instanceof Error ? error.message : t('failedSave'), true)
     }
@@ -835,6 +1056,11 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     })
   }
 
+  const renderQuality = (): void => {
+    if (layout !== 'page') return
+    renderDataQuality(container, dataQuality)
+  }
+
   const renderFilteredLocks = (): void => {
     const visibleLocks = renderLocks()
     if (layout !== 'page') return
@@ -872,6 +1098,12 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
                 <h3>${t('statistics')}</h3>
               </div>
               <div id="admin-stats" class="admin-stats"></div>
+            </section>
+            <section class="admin-quality-section">
+              <div class="admin-section-header">
+                <h3>${t('dataQuality')}</h3>
+              </div>
+              <div id="admin-data-quality" class="admin-data-quality"></div>
             </section>
             <div class="admin-filter-bar">
               <label>
@@ -973,9 +1205,11 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
   const loadStats = async (): Promise<void> => {
     if (layout !== 'page') return
     try {
-      const body = await adminRequest<{ stats: UsageStatsRecord }>('/api/admin/reports')
+      const body = await adminRequest<{ stats: UsageStatsRecord; quality: AdminDataQualityRecord }>('/api/admin/reports')
       usageStats = body.stats
+      dataQuality = body.quality
       renderUsageStats()
+      renderQuality()
     } catch (error) {
       const message = error instanceof Error ? error.message : t('failedLoad')
       setStatus(
@@ -988,6 +1222,7 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
 
   if (layout === 'page') {
     renderUsageStats()
+    renderQuality()
 
     container.querySelector<HTMLInputElement>('#admin-filter-query')?.addEventListener('input', (event) => {
       filters = { ...filters, query: (event.target as HTMLInputElement).value }
@@ -1038,12 +1273,14 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
     locks = []
     importItems = []
     usageStats = undefined
+    dataQuality = undefined
     selectedLock = undefined
     const input = container.querySelector<HTMLInputElement>('#admin-password')
     if (input) input.value = ''
     renderLocks()
     renderImports()
     renderUsageStats()
+    renderQuality()
     renderEditor(container, undefined)
     setStatus(container, t('lockSessionClosed'))
   })
@@ -1056,6 +1293,26 @@ export function mountAdminPanel(container: HTMLElement, options: AdminPanelOptio
       const status = nameAction.dataset.status
       if (nameId && (status === 'approved' || status === 'pending' || status === 'rejected')) {
         await setLockNameStatus(nameId, status)
+      }
+      return
+    }
+
+    const qualityNameAction = target.closest<HTMLButtonElement>('.admin-quality-name-action')
+    if (qualityNameAction) {
+      const nameId = qualityNameAction.dataset.nameId
+      const status = qualityNameAction.dataset.status
+      if (nameId && (status === 'approved' || status === 'pending' || status === 'rejected')) {
+        await setLockNameStatus(nameId, status)
+      }
+      return
+    }
+
+    const qualityLockAction = target.closest<HTMLButtonElement>('.admin-quality-lock-action')
+    if (qualityLockAction) {
+      const lockId = qualityLockAction.dataset.lockId
+      const status = qualityLockAction.dataset.status
+      if (lockId && (status === 'approved' || status === 'pending' || status === 'rejected')) {
+        await setQualityLockStatus(lockId, status)
       }
       return
     }

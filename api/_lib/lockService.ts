@@ -1,4 +1,10 @@
 import type {
+  AdminDataQualityRecord,
+  AdminQualityLockSummary,
+  AdminQualityMultiNameLock,
+  AdminQualityNameConflict,
+  AdminQualityNameItem,
+  AdminQualityStartPinGroup,
   AdminLockRecord,
   ChestRecord,
   LinkType,
@@ -56,6 +62,53 @@ type ReportRow = {
   created_at: string
 }
 
+type DataQualitySummaryRow = {
+  low_signal_auto_solve: number
+  low_signal_auto_solve_with_siblings: number
+  start_pin_groups: number
+  locks_in_start_pin_groups: number
+  same_name_same_start_pin_groups: number
+  multi_name_locks: number
+  orphan_reports: number
+}
+
+type DataQualityLockSummaryRow = {
+  id: string
+  display_name: string
+  review_status: ReviewStatus
+  gate_count: number
+  initial_pins: unknown
+  link_count: number
+  load_count: number
+  report_count: number
+  report_sources: string | null
+  max_name_score: number | null
+  created_at?: string | Date
+  updated_at?: string | Date
+}
+
+type DataQualityStartPinGroupRow = {
+  gate_count: number
+  initial_pins: unknown
+  lock_count: number
+  total_load_count: number
+  locks: unknown
+}
+
+type DataQualityNameConflictRow = {
+  normalized_name: string
+  example_name: string
+  gate_count: number
+  initial_pins: unknown
+  lock_count: number
+  names: unknown
+}
+
+type DataQualityMultiNameLockRow = DataQualityLockSummaryRow & {
+  active_name_count: number
+  names: unknown
+}
+
 export const HIDDEN_LOCK_SCORE_THRESHOLD = -5
 
 export type LockMutationResult = {
@@ -103,6 +156,64 @@ function jsonValue<T>(value: unknown, fallback: T): T {
   if (value === null || value === undefined) return fallback
   if (typeof value === 'string') return JSON.parse(value) as T
   return value as T
+}
+
+function numberValue(value: unknown): number {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') return Number(value)
+  return 0
+}
+
+function timestampValue(value: string | Date | undefined): string | undefined {
+  if (!value) return undefined
+  return value instanceof Date ? value.toISOString() : value
+}
+
+function qualityLockSummaryFromRow(row: DataQualityLockSummaryRow): AdminQualityLockSummary {
+  return {
+    id: row.id,
+    displayName: row.display_name,
+    reviewStatus: row.review_status,
+    gateCount: row.gate_count,
+    initialPins: jsonValue<number[]>(row.initial_pins, []),
+    linkCount: numberValue(row.link_count),
+    loadCount: numberValue(row.load_count),
+    reportCount: numberValue(row.report_count),
+    reportSources: row.report_sources,
+    maxNameScore: row.max_name_score === null ? null : numberValue(row.max_name_score),
+    createdAt: timestampValue(row.created_at),
+    updatedAt: timestampValue(row.updated_at),
+  }
+}
+
+function qualityLockSummaryFromJson(value: unknown): AdminQualityLockSummary {
+  const row = value as Record<string, unknown>
+  return {
+    id: String(row.id ?? ''),
+    displayName: String(row.displayName ?? 'Unnamed lock'),
+    reviewStatus: isReviewStatus(row.reviewStatus) ? row.reviewStatus : 'pending',
+    gateCount: numberValue(row.gateCount),
+    initialPins: jsonValue<number[]>(row.initialPins, []),
+    linkCount: numberValue(row.linkCount),
+    loadCount: numberValue(row.loadCount),
+    reportCount: numberValue(row.reportCount),
+    reportSources: typeof row.reportSources === 'string' ? row.reportSources : null,
+    maxNameScore: row.maxNameScore === null || row.maxNameScore === undefined ? null : numberValue(row.maxNameScore),
+    createdAt: typeof row.createdAt === 'string' ? row.createdAt : undefined,
+    updatedAt: typeof row.updatedAt === 'string' ? row.updatedAt : undefined,
+  }
+}
+
+function qualityNameItemFromJson(value: unknown): AdminQualityNameItem {
+  const row = value as Record<string, unknown>
+  return {
+    ...qualityLockSummaryFromJson(value),
+    nameId: String(row.nameId ?? ''),
+    name: String(row.name ?? ''),
+    nameStatus: isReviewStatus(row.nameStatus) ? row.nameStatus : 'pending',
+    nameSource: String(row.nameSource ?? 'anonymous'),
+    nameScore: numberValue(row.nameScore),
+  }
 }
 
 function displayNameFor(lock: { fingerprint: string; names: LockNameRecord[] }): string {
@@ -889,6 +1000,458 @@ export async function listReports(): Promise<ReportRow[]> {
     `,
   )
   return result.rows
+}
+
+export async function listAdminDataQuality(): Promise<AdminDataQualityRecord> {
+  const [
+    summaryResult,
+    lowSignalResult,
+    startPinGroupsResult,
+    sameNameSameStartPinsResult,
+    multiNameLocksResult,
+  ] = await Promise.all([
+    query<DataQualitySummaryRow>(
+      `
+        WITH active_locks AS (
+          SELECT
+            l.id,
+            l.gate_count,
+            l.initial_pins,
+            l.review_status,
+            l.created_at,
+            EXISTS (
+              SELECT 1
+              FROM lock_names n
+              WHERE n.lock_id = l.id
+                AND n.status <> 'rejected'
+            ) AS has_name,
+            (
+              SELECT string_agg(DISTINCT r.source, ', ' ORDER BY r.source)
+              FROM lock_reports r
+              WHERE r.lock_id = l.id
+            ) AS sources,
+            (
+              SELECT COUNT(*)::integer
+              FROM usage_events e
+              WHERE e.lock_id = l.id
+                AND e.event_type = 'lock_load'
+            ) AS load_count
+          FROM locks l
+          WHERE l.review_status <> 'rejected'
+        ),
+        start_pin_groups AS (
+          SELECT gate_count, initial_pins, COUNT(*)::integer AS lock_count
+          FROM active_locks
+          GROUP BY gate_count, initial_pins
+          HAVING COUNT(*) > 1
+        ),
+        same_name_same_start_pin_groups AS (
+          SELECT n.normalized_name, l.gate_count, l.initial_pins
+          FROM lock_names n
+          JOIN locks l ON l.id = n.lock_id
+          WHERE n.status <> 'rejected'
+            AND l.review_status <> 'rejected'
+          GROUP BY n.normalized_name, l.gate_count, l.initial_pins
+          HAVING COUNT(DISTINCT l.id) > 1
+        ),
+        multi_name_locks AS (
+          SELECT l.id
+          FROM locks l
+          JOIN lock_names n ON n.lock_id = l.id AND n.status <> 'rejected'
+          WHERE l.review_status <> 'rejected'
+          GROUP BY l.id
+          HAVING COUNT(n.id) > 1
+        ),
+        candidate_base AS (
+          SELECT
+            a.*,
+            EXISTS (
+              SELECT 1
+              FROM active_locks other
+              WHERE other.id <> a.id
+                AND other.gate_count = a.gate_count
+                AND other.initial_pins = a.initial_pins
+            ) AS has_start_pin_sibling
+          FROM active_locks a
+        )
+        SELECT
+          COUNT(*) FILTER (
+            WHERE review_status = 'pending'
+              AND NOT has_name
+              AND sources = 'auto-solve'
+              AND load_count = 0
+              AND created_at < now() - interval '48 hours'
+          )::integer AS low_signal_auto_solve,
+          COUNT(*) FILTER (
+            WHERE review_status = 'pending'
+              AND NOT has_name
+              AND sources = 'auto-solve'
+              AND load_count = 0
+              AND created_at < now() - interval '48 hours'
+              AND has_start_pin_sibling
+          )::integer AS low_signal_auto_solve_with_siblings,
+          (SELECT COUNT(*)::integer FROM start_pin_groups) AS start_pin_groups,
+          COALESCE((SELECT SUM(lock_count)::integer FROM start_pin_groups), 0) AS locks_in_start_pin_groups,
+          (SELECT COUNT(*)::integer FROM same_name_same_start_pin_groups) AS same_name_same_start_pin_groups,
+          (SELECT COUNT(*)::integer FROM multi_name_locks) AS multi_name_locks,
+          (SELECT COUNT(*)::integer FROM lock_reports WHERE lock_id IS NULL) AS orphan_reports
+        FROM candidate_base
+      `,
+    ),
+    query<DataQualityLockSummaryRow>(
+      `
+        WITH lock_base AS (
+          SELECT
+            l.id,
+            l.gate_count,
+            l.initial_pins,
+            l.review_status,
+            l.created_at,
+            l.updated_at,
+            COALESCE((
+              SELECT n.name
+              FROM lock_names n
+              WHERE n.lock_id = l.id
+                AND n.status <> 'rejected'
+              ORDER BY
+                CASE n.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+                ${nameSourcePrioritySql('n')},
+                n.score DESC,
+                n.created_at ASC
+              LIMIT 1
+            ), 'Unnamed lock') AS display_name,
+            (
+              SELECT MAX(n.score)
+              FROM lock_names n
+              WHERE n.lock_id = l.id
+                AND n.status <> 'rejected'
+            ) AS max_name_score,
+            (
+              SELECT COUNT(*)::integer
+              FROM jsonb_array_elements(l.links) row_item,
+                jsonb_array_elements_text(row_item.value) link_value
+              WHERE link_value.value <> 'none'
+            ) AS link_count,
+            (
+              SELECT COUNT(*)::integer
+              FROM usage_events e
+              WHERE e.lock_id = l.id
+                AND e.event_type = 'lock_load'
+            ) AS load_count,
+            (
+              SELECT COUNT(*)::integer
+              FROM lock_reports r
+              WHERE r.lock_id = l.id
+            ) AS report_count,
+            (
+              SELECT string_agg(DISTINCT r.source, ', ' ORDER BY r.source)
+              FROM lock_reports r
+              WHERE r.lock_id = l.id
+            ) AS report_sources
+          FROM locks l
+        )
+        SELECT *
+        FROM lock_base l
+        WHERE l.review_status = 'pending'
+          AND l.display_name = 'Unnamed lock'
+          AND l.report_sources = 'auto-solve'
+          AND l.load_count = 0
+          AND l.created_at < now() - interval '48 hours'
+        ORDER BY l.created_at ASC
+        LIMIT 40
+      `,
+    ),
+    query<DataQualityStartPinGroupRow>(
+      `
+        WITH lock_base AS (
+          SELECT
+            l.id,
+            l.gate_count,
+            l.initial_pins,
+            l.review_status,
+            l.created_at,
+            l.updated_at,
+            COALESCE((
+              SELECT n.name
+              FROM lock_names n
+              WHERE n.lock_id = l.id
+                AND n.status <> 'rejected'
+              ORDER BY
+                CASE n.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+                ${nameSourcePrioritySql('n')},
+                n.score DESC,
+                n.created_at ASC
+              LIMIT 1
+            ), 'Unnamed lock') AS display_name,
+            (
+              SELECT MAX(n.score)
+              FROM lock_names n
+              WHERE n.lock_id = l.id
+                AND n.status <> 'rejected'
+            ) AS max_name_score,
+            (
+              SELECT COUNT(*)::integer
+              FROM jsonb_array_elements(l.links) row_item,
+                jsonb_array_elements_text(row_item.value) link_value
+              WHERE link_value.value <> 'none'
+            ) AS link_count,
+            (
+              SELECT COUNT(*)::integer
+              FROM usage_events e
+              WHERE e.lock_id = l.id
+                AND e.event_type = 'lock_load'
+            ) AS load_count,
+            (
+              SELECT COUNT(*)::integer
+              FROM lock_reports r
+              WHERE r.lock_id = l.id
+            ) AS report_count,
+            (
+              SELECT string_agg(DISTINCT r.source, ', ' ORDER BY r.source)
+              FROM lock_reports r
+              WHERE r.lock_id = l.id
+            ) AS report_sources
+          FROM locks l
+          WHERE l.review_status <> 'rejected'
+        ),
+        grouped AS (
+          SELECT
+            gate_count,
+            initial_pins,
+            COUNT(*)::integer AS lock_count,
+            SUM(load_count)::integer AS total_load_count
+          FROM lock_base
+          GROUP BY gate_count, initial_pins
+          HAVING COUNT(*) > 1
+        )
+        SELECT
+          g.gate_count,
+          g.initial_pins,
+          g.lock_count,
+          g.total_load_count,
+          jsonb_agg(
+            jsonb_build_object(
+              'id', b.id,
+              'displayName', b.display_name,
+              'reviewStatus', b.review_status,
+              'gateCount', b.gate_count,
+              'initialPins', b.initial_pins,
+              'linkCount', b.link_count,
+              'loadCount', b.load_count,
+              'reportCount', b.report_count,
+              'reportSources', b.report_sources,
+              'maxNameScore', b.max_name_score,
+              'createdAt', b.created_at,
+              'updatedAt', b.updated_at
+            )
+            ORDER BY b.load_count DESC, b.report_count DESC, b.display_name ASC
+          ) AS locks
+        FROM grouped g
+        JOIN lock_base b ON b.gate_count = g.gate_count AND b.initial_pins = g.initial_pins
+        GROUP BY g.gate_count, g.initial_pins, g.lock_count, g.total_load_count
+        ORDER BY g.lock_count DESC, g.total_load_count DESC, g.gate_count, g.initial_pins::text
+        LIMIT 20
+      `,
+    ),
+    query<DataQualityNameConflictRow>(
+      `
+        WITH active_names AS (
+          SELECT
+            n.id AS name_id,
+            n.normalized_name,
+            n.name,
+            n.status AS name_status,
+            n.score AS name_score,
+            n.source AS name_source,
+            l.id AS lock_id,
+            l.gate_count,
+            l.initial_pins,
+            l.review_status,
+            l.created_at,
+            l.updated_at,
+            (
+              SELECT COUNT(*)::integer
+              FROM jsonb_array_elements(l.links) row_item,
+                jsonb_array_elements_text(row_item.value) link_value
+              WHERE link_value.value <> 'none'
+            ) AS link_count,
+            (
+              SELECT COUNT(*)::integer
+              FROM usage_events e
+              WHERE e.lock_id = l.id
+                AND e.event_type = 'lock_load'
+            ) AS load_count,
+            (
+              SELECT COUNT(*)::integer
+              FROM lock_reports r
+              WHERE r.lock_id = l.id
+            ) AS report_count,
+            (
+              SELECT string_agg(DISTINCT r.source, ', ' ORDER BY r.source)
+              FROM lock_reports r
+              WHERE r.lock_id = l.id
+            ) AS report_sources
+          FROM lock_names n
+          JOIN locks l ON l.id = n.lock_id
+          WHERE n.status <> 'rejected'
+            AND l.review_status <> 'rejected'
+        ),
+        grouped AS (
+          SELECT normalized_name, gate_count, initial_pins, COUNT(DISTINCT lock_id)::integer AS lock_count
+          FROM active_names
+          GROUP BY normalized_name, gate_count, initial_pins
+          HAVING COUNT(DISTINCT lock_id) > 1
+        )
+        SELECT
+          g.normalized_name,
+          MIN(a.name) AS example_name,
+          g.gate_count,
+          g.initial_pins,
+          g.lock_count,
+          jsonb_agg(
+            jsonb_build_object(
+              'id', a.lock_id,
+              'displayName', a.name,
+              'reviewStatus', a.review_status,
+              'gateCount', a.gate_count,
+              'initialPins', a.initial_pins,
+              'linkCount', a.link_count,
+              'loadCount', a.load_count,
+              'reportCount', a.report_count,
+              'reportSources', a.report_sources,
+              'maxNameScore', a.name_score,
+              'createdAt', a.created_at,
+              'updatedAt', a.updated_at,
+              'nameId', a.name_id,
+              'name', a.name,
+              'nameStatus', a.name_status,
+              'nameSource', a.name_source,
+              'nameScore', a.name_score
+            )
+            ORDER BY a.load_count DESC, a.report_count DESC, a.name ASC
+          ) AS names
+        FROM grouped g
+        JOIN active_names a ON a.normalized_name = g.normalized_name
+          AND a.gate_count = g.gate_count
+          AND a.initial_pins = g.initial_pins
+        GROUP BY g.normalized_name, g.gate_count, g.initial_pins, g.lock_count
+        ORDER BY g.lock_count DESC, g.normalized_name
+        LIMIT 20
+      `,
+    ),
+    query<DataQualityMultiNameLockRow>(
+      `
+        SELECT
+          l.id,
+          COALESCE((
+            SELECT n.name
+            FROM lock_names n
+            WHERE n.lock_id = l.id
+              AND n.status <> 'rejected'
+            ORDER BY
+              CASE n.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+              ${nameSourcePrioritySql('n')},
+              n.score DESC,
+              n.created_at ASC
+            LIMIT 1
+          ), 'Unnamed lock') AS display_name,
+          l.review_status,
+          l.gate_count,
+          l.initial_pins,
+          (
+            SELECT COUNT(*)::integer
+            FROM jsonb_array_elements(l.links) row_item,
+              jsonb_array_elements_text(row_item.value) link_value
+            WHERE link_value.value <> 'none'
+          ) AS link_count,
+          (
+            SELECT COUNT(*)::integer
+            FROM usage_events e
+            WHERE e.lock_id = l.id
+              AND e.event_type = 'lock_load'
+          ) AS load_count,
+          (
+            SELECT COUNT(*)::integer
+            FROM lock_reports r
+            WHERE r.lock_id = l.id
+          ) AS report_count,
+          (
+            SELECT string_agg(DISTINCT r.source, ', ' ORDER BY r.source)
+            FROM lock_reports r
+            WHERE r.lock_id = l.id
+          ) AS report_sources,
+          (
+            SELECT MAX(n.score)
+            FROM lock_names n
+            WHERE n.lock_id = l.id
+              AND n.status <> 'rejected'
+          ) AS max_name_score,
+          l.created_at,
+          l.updated_at,
+          COUNT(n.id)::integer AS active_name_count,
+          jsonb_agg(
+            jsonb_build_object(
+              'id', n.id,
+              'name', n.name,
+              'score', n.score,
+              'status', n.status,
+              'source', n.source
+            )
+            ORDER BY n.score DESC, n.name ASC
+          ) AS names
+        FROM locks l
+        JOIN lock_names n ON n.lock_id = l.id AND n.status <> 'rejected'
+        WHERE l.review_status <> 'rejected'
+        GROUP BY l.id
+        HAVING COUNT(n.id) > 1
+        ORDER BY active_name_count DESC, load_count DESC, l.updated_at DESC
+        LIMIT 30
+      `,
+    ),
+  ])
+
+  const summary = summaryResult.rows[0] ?? {
+    low_signal_auto_solve: 0,
+    low_signal_auto_solve_with_siblings: 0,
+    start_pin_groups: 0,
+    locks_in_start_pin_groups: 0,
+    same_name_same_start_pin_groups: 0,
+    multi_name_locks: 0,
+    orphan_reports: 0,
+  }
+
+  return {
+    summary: {
+      lowSignalAutoSolve: numberValue(summary.low_signal_auto_solve),
+      lowSignalAutoSolveWithSiblings: numberValue(summary.low_signal_auto_solve_with_siblings),
+      startPinGroups: numberValue(summary.start_pin_groups),
+      locksInStartPinGroups: numberValue(summary.locks_in_start_pin_groups),
+      sameNameSameStartPinGroups: numberValue(summary.same_name_same_start_pin_groups),
+      multiNameLocks: numberValue(summary.multi_name_locks),
+      orphanReports: numberValue(summary.orphan_reports),
+    },
+    lowSignalAutoSolve: lowSignalResult.rows.map(qualityLockSummaryFromRow),
+    startPinGroups: startPinGroupsResult.rows.map((row): AdminQualityStartPinGroup => ({
+      gateCount: row.gate_count,
+      initialPins: jsonValue<number[]>(row.initial_pins, []),
+      lockCount: numberValue(row.lock_count),
+      totalLoadCount: numberValue(row.total_load_count),
+      locks: jsonValue<unknown[]>(row.locks, []).map(qualityLockSummaryFromJson),
+    })),
+    sameNameSameStartPins: sameNameSameStartPinsResult.rows.map((row): AdminQualityNameConflict => ({
+      normalizedName: row.normalized_name,
+      exampleName: row.example_name,
+      gateCount: row.gate_count,
+      initialPins: jsonValue<number[]>(row.initial_pins, []),
+      lockCount: numberValue(row.lock_count),
+      names: jsonValue<unknown[]>(row.names, []).map(qualityNameItemFromJson),
+    })),
+    multiNameLocks: multiNameLocksResult.rows.map((row): AdminQualityMultiNameLock => ({
+      ...qualityLockSummaryFromRow(row),
+      activeNameCount: numberValue(row.active_name_count),
+      names: jsonValue<LockNameRecord[]>(row.names, []),
+    })),
+  }
 }
 
 export async function setNameStatus(

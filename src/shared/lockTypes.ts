@@ -139,3 +139,64 @@ export type UsageStatsRecord = {
   daily: UsageDailyRecord[]
   topLocks: UsageTopLockRecord[]
 }
+
+export type AdminQualityLockSummary = {
+  id: string
+  displayName: string
+  reviewStatus: ReviewStatus
+  gateCount: number
+  initialPins: number[]
+  linkCount: number
+  loadCount: number
+  reportCount: number
+  reportSources: string | null
+  maxNameScore: number | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type AdminQualityNameItem = AdminQualityLockSummary & {
+  nameId: string
+  name: string
+  nameStatus: ReviewStatus
+  nameSource: string
+  nameScore: number
+}
+
+export type AdminQualityStartPinGroup = {
+  gateCount: number
+  initialPins: number[]
+  lockCount: number
+  totalLoadCount: number
+  locks: AdminQualityLockSummary[]
+}
+
+export type AdminQualityNameConflict = {
+  normalizedName: string
+  exampleName: string
+  gateCount: number
+  initialPins: number[]
+  lockCount: number
+  names: AdminQualityNameItem[]
+}
+
+export type AdminQualityMultiNameLock = AdminQualityLockSummary & {
+  activeNameCount: number
+  names: LockNameRecord[]
+}
+
+export type AdminDataQualityRecord = {
+  summary: {
+    lowSignalAutoSolve: number
+    lowSignalAutoSolveWithSiblings: number
+    startPinGroups: number
+    locksInStartPinGroups: number
+    sameNameSameStartPinGroups: number
+    multiNameLocks: number
+    orphanReports: number
+  }
+  lowSignalAutoSolve: AdminQualityLockSummary[]
+  startPinGroups: AdminQualityStartPinGroup[]
+  sameNameSameStartPins: AdminQualityNameConflict[]
+  multiNameLocks: AdminQualityMultiNameLock[]
+}

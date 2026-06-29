@@ -390,6 +390,23 @@ test('admin moderation actions refresh statistics', async () => {
   assert.match(panel, /await Promise\.all\(\[loadLocks\(body\.lock\.id\), loadStats\(\)\]\)/)
 })
 
+test('admin data-quality review uses reports route and existing moderation endpoints', async () => {
+  const route = await readFile(path.join(rootDir, 'api/admin/reports.ts'), 'utf8')
+  const service = await readFile(path.join(rootDir, 'api/_lib/lockService.ts'), 'utf8')
+  const panel = await readFile(path.join(rootDir, 'src/game/adminPanel.ts'), 'utf8')
+
+  assert.match(route, /listAdminDataQuality/)
+  assert.match(route, /sendJson\(res, 200, \{ reports, stats, quality \}\)/)
+  assert.match(service, /export async function listAdminDataQuality/)
+  assert.match(service, /low_signal_auto_solve/)
+  assert.match(service, /same_name_same_start_pin_groups/)
+  assert.match(panel, /id="admin-data-quality"/)
+  assert.match(panel, /admin-quality-lock-action/)
+  assert.match(panel, /admin-quality-name-action/)
+  assert.match(panel, /setQualityLockStatus/)
+  assert.match(panel, /setLockNameStatus\(nameId, status\)/)
+})
+
 test('canonical fingerprint migration splits conflict reports into separate locks', async () => {
   const migration = await readFile(
     path.join(rootDir, 'db/migrations/005_canonical_lock_fingerprints.sql'),

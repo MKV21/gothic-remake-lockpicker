@@ -1449,6 +1449,96 @@ ul {
   min-width: 34rem;
 }
 
+.admin-quality-section {
+  margin: 1rem 0;
+}
+
+.admin-data-quality {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-quality-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.admin-quality-card {
+  min-width: 0;
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  scrollbar-color: var(--accent) rgba(0, 0, 0, 0.18);
+  scrollbar-width: thin;
+}
+
+.admin-quality-card h4,
+.admin-quality-card h5 {
+  margin: 0;
+}
+
+.admin-quality-card h4 {
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.admin-quality-card h5 {
+  font-size: 0.75rem;
+  color: var(--text);
+}
+
+.admin-quality-card p,
+.admin-quality-card small,
+.admin-quality-lock span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+.admin-quality-card p {
+  margin: 0.25rem 0 0.625rem;
+}
+
+.admin-quality-group {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.admin-quality-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-quality-lock {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid rgba(139, 115, 85, 0.2);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.admin-quality-lock strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 0.75rem;
+}
+
 .admin-filter-bar {
   display: grid;
   grid-template-columns: minmax(14rem, 2fr) repeat(3, minmax(9rem, 1fr));
@@ -1997,6 +2087,10 @@ ul {
   }
 
   .admin-stats-tables {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-quality-grid {
     grid-template-columns: 1fr;
   }
 
